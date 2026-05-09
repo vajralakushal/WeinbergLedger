@@ -1,2 +1,3 @@
-./env
-./Weinberg_Library_9_312_ascii.csv
+env
+Weinberg_Library_9_312_ascii.csv
+__pycache__
