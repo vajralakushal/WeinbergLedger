@@ -7,34 +7,37 @@
 
 using namespace std;
 
-/* Store all query results here */
+/* Store query results */
 vector<vector<string>> results;
 
 /* Function declarations */
-static int selectData(const char* s);
+static int selectData(const char* dbPath, const string& searchTerm);
 static int callback(void* data, int argc, char** argv, char** azColName);
 
-int main()
+int main(int argc, char* argv[])
 {
     ios::sync_with_stdio(false);
     struct timeval start, stop; 
     double total_time;
-    
 
+    if (argc < 2) {
+        cerr << "Usage: ./test.exe SEARCH_TERM" << endl;
+        return 1;
+    }
+
+    string searchTerm = argv[1];
 
     const char* dir =
-        "C:\\Users\\yalam\\Documents\\devWeinbergLedger\\library.db";
+        "..\\library.db";
 
-    /* Run query and store results */
-    gettimeofday(&start, NULL); 
 
-    selectData(dir);
-
-	gettimeofday(&stop, NULL); 
+    gettimeofday(&start, NULL);
+    selectData(dir, searchTerm);
+    gettimeofday(&stop, NULL); 
     total_time = (stop.tv_sec-start.tv_sec)+0.000001*(stop.tv_usec-start.tv_usec);
     printf("Total Time: %8.4f\n seconds",	 total_time);
 
-    /* Print results AFTER query finishes */
+    /* Print results AFTER query completes */
     cout << "\n===== QUERY RESULTS =====\n" << endl;
 
     for (const auto& row : results) {
@@ -49,22 +52,24 @@ int main()
     return 0;
 }
 
-static int selectData(const char* s)
+static int selectData(const char* dbPath, const string& searchTerm)
 {
     sqlite3* DB;
     char* messageError;
 
-    string sql =
-        "SELECT * FROM LIBRARY WHERE TITLE LIKE '%FREED%';";
-
-    int exit = sqlite3_open(s, &DB);
+    int exit = sqlite3_open(dbPath, &DB);
 
     if (exit != SQLITE_OK) {
         cerr << "Cannot open database." << endl;
         return 1;
     }
 
-    /* Execute query */
+    /* Build SQL query dynamically */
+    string sql =
+        "SELECT * FROM LIBRARY WHERE TITLE LIKE '%" +
+        searchTerm +
+        "%';";
+
     exit = sqlite3_exec(
         DB,
         sql.c_str(),
@@ -83,7 +88,6 @@ static int selectData(const char* s)
         cout << "Records fetched successfully.\n";
     }
 
-    /* Close DB */
     exit = sqlite3_close(DB);
 
     if (exit != SQLITE_OK) {
@@ -93,7 +97,6 @@ static int selectData(const char* s)
     return 0;
 }
 
-/* Callback now STORES rows instead of printing */
 static int callback(
     void* data,
     int argc,
