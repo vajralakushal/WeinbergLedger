@@ -5,13 +5,14 @@ from db import connect, search
 app = Flask(__name__)
 CORS(app)
 
-con = connect("library.db")
+
 
 @app.route("/api/search")
 def search_endpoint():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify([])
+    con = connect("library.db")
     cur = con.cursor()
     rows = search(query, cur)
     con.close()
