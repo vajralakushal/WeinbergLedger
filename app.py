@@ -14,6 +14,7 @@ def search_endpoint():
         return jsonify([])
     cur = con.cursor()
     rows = search(query, cur)
+    con.close()
     columns = [d[0] for d in cur.description]
     return jsonify([dict(zip(columns, row)) for row in rows])
 
