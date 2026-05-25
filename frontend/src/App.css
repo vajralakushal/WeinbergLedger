@@ -1,0 +1,157 @@
+/* ── Layout ── */
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 24px 80px;
+  background: #f5f5f0;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.search-card {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/* ── Title ── */
+.title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+/* ── Search row ── */
+.search-row {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 600px;
+  gap: 0;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.search-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 1rem;
+  font-family: inherit;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #1a1a1a;
+}
+
+.search-input::placeholder {
+  color: #a09080;
+}
+
+.search-btn {
+  padding: 0 16px;
+  font-size: 1.15rem;
+  border: none;
+  border-left: 1.5px solid #b0a090;
+  background: #f0ebe3;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.search-btn:hover {
+  background: #e4ddd4;
+}
+
+.search-btn:active {
+  background: #d8d0c6;
+}
+
+/* ── Status messages ── */
+.status {
+  margin: 4px 0 0;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.status.error {
+  color: #c0392b;
+}
+
+/* ── Results ── */
+.results {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-count {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #666;
+  font-family: system-ui, sans-serif;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid #ccc4b8;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  background: #fff;
+  font-size: 0.85rem;
+  font-family: system-ui, sans-serif;
+}
+
+thead {
+  background: #2c2418;
+  color: #f5f0e8;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+td {
+  padding: 8px 14px;
+  vertical-align: top;
+  border-bottom: 1px solid #ece7df;
+  color: #222;
+  max-width: 320px;
+  word-break: break-word;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: #faf7f2;
+}

@@ -30,3 +30,20 @@ def init_db(con):
         if s:
             cur.execute(s)
     con.commit()
+
+def search(search_text, cursor):
+    search_pattern = f"%{search_text}%"
+    cursor.execute(
+    f"""
+    SELECT *
+    FROM LIBRARY
+    WHERE
+        TITLE LIKE :placeholder OR
+        CREATOR LIKE :placeholder OR
+        PUBLISHER LIKE :placeholder OR
+        SERIES LIKE :placeholder OR
+        SUBJECT LIKE :placeholder OR
+        CREATION_DATE LIKE :placeholder OR
+        IDENTIFIER LIKE :placeholder
+    """, {"placeholder": search_pattern})
+    return cursor.fetchall()
