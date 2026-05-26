@@ -1,0 +1,141 @@
+/* ── Overlay ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+/* ── Back button (lives on the overlay, not inside the card) ── */
+.modal-back-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 201;
+  padding: 8px 18px;
+  font-size: 0.9rem;
+  font-family: Georgia, "Times New Roman", serif;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.modal-back-btn:hover {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+/* ── Modal card ── */
+.modal-card {
+  position: relative;
+  width: 88vw;
+  max-width: 860px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 10px;
+  padding: 36px 44px 40px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32);
+}
+
+/* ── Thumbnail ── */
+.modal-thumbnail-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.modal-thumbnail {
+  max-height: 220px;
+  max-width: 160px;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+/* ── Detail table ── */
+.modal-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  font-family: system-ui, sans-serif;
+}
+
+.modal-detail-table th {
+  width: 110px;
+  text-align: right;
+  padding: 7px 16px 7px 0;
+  color: #999;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: top;
+  white-space: nowrap;
+  border-right: 2px solid #ede8df;
+}
+
+.modal-detail-table td {
+  padding: 7px 0 7px 16px;
+  color: #1a1a1a;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.modal-detail-table tr:not(:last-child) th,
+.modal-detail-table tr:not(:last-child) td {
+  border-bottom: 1px solid #f0ebe4;
+}
+
+/* ── Borrower editable field ── */
+.borrower-display {
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dashed;
+  text-underline-offset: 3px;
+  text-decoration-color: #bbb;
+  transition: text-decoration-color 0.15s;
+}
+
+.borrower-display:hover {
+  text-decoration-color: #666;
+}
+
+.borrower-input {
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  padding: 2px 8px;
+  border: 1.5px solid #b0a090;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+  max-width: 280px;
+  background: #fafaf8;
+}
+
+.borrower-input:focus {
+  border-color: #5a4030;
+  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+}
+
+/* ── Borrower save error ── */
+.borrower-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #c0392b;
+}
+
+/* ── Empty placeholder ── */
+.modal-empty {
+  color: #ccc;
+  font-style: normal;
+}

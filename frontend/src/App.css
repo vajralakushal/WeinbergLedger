@@ -152,6 +152,10 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
-tbody tr:hover td {
+tbody tr.clickable-row {
+  cursor: pointer;
+}
+
+tbody tr.clickable-row:hover td {
   background: #faf7f2;
 }

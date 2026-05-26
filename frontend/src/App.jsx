@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import "./App.css";
+import BookModal from "./BookModal";
 
 const COLUMNS = [
   { key: "ID",            label: "ID" },
@@ -16,10 +17,11 @@ const COLUMNS = [
 ];
 
 export default function App() {
-  const [query, setQuery]     = useState("");
-  const [rows, setRows]       = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState(null);
+  const [query, setQuery]           = useState("");
+  const [rows, setRows]             = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
+  const [selectedBook, setSelectedBook] = useState(null);
 
   const runSearch = useCallback(async () => {
     const q = query.trim();
@@ -29,7 +31,7 @@ export default function App() {
     setRows(null);
     try {
       const res = await fetch(
-        `http://localhost:5003/api/search?q=${encodeURIComponent(q)}`
+        `http://localhost:5004/api/search?q=${encodeURIComponent(q)}`
       );
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       setRows(await res.json());
@@ -43,6 +45,14 @@ export default function App() {
   const handleKey = (e) => {
     if (e.key === "Enter") runSearch();
   };
+
+  // Sync borrower change back into the results table
+  const handleBorrowerUpdate = useCallback((id, name) => {
+    setRows((prev) =>
+      prev?.map((r) => r.ID === id ? { ...r, BORROWER: name } : r) ?? prev
+    );
+    setSelectedBook((prev) => prev?.ID === id ? { ...prev, BORROWER: name } : prev);
+  }, []);
 
   return (
     <div className="page">
@@ -86,7 +96,11 @@ export default function App() {
                     </thead>
                     <tbody>
                       {rows.map((row) => (
-                        <tr key={row.ID}>
+                        <tr
+                          key={row.ID}
+                          className="clickable-row"
+                          onClick={() => setSelectedBook(row)}
+                        >
                           {COLUMNS.map((c) => (
                             <td key={c.key}>{row[c.key] ?? ""}</td>
                           ))}
@@ -99,6 +113,14 @@ export default function App() {
             )
         )}
       </div>
+
+      {selectedBook && (
+        <BookModal
+          book={selectedBook}
+          onClose={() => setSelectedBook(null)}
+          onBorrowerUpdate={handleBorrowerUpdate}
+        />
+      )}
     </div>
   );
 }

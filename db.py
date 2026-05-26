@@ -1,5 +1,6 @@
 import sqlite3
 from typing import Any, Dict
+import re
 
 
 SCHEMA = """
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS LIBRARY (
 """
 
 def connect(db_path: str):
-    con = sqlite3.connect(db_path, check_same_thread=False)
+    con = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     con.execute("PRAGMA journal_mode=WAL;")
     return con
 
@@ -98,3 +99,64 @@ def search(search_text,cursor):
     
     result = set.intersection(*list_of_sets)
     return result
+
+#Identifier Extractor
+def extract_identifers(id: str, cursor) -> dict:
+    """
+    Extracts identifiers, if any, for the selected book.
+
+    Args:
+        id (str): The primary key for the database, unique to each book.
+        cursor (int): The second number.
+
+    Returns:
+        dict: Different identifiers are the keys, and their values are lists for each qualifier for the corresponding identifier (if there are more than one)
+    """
+    book_id = int(f"{id}")
+    result = {}
+    cursor.execute("SELECT IDENTIFIER FROM LIBRARY WHERE ID = ?", (book_id,))
+    tmp = cursor.fetchall()
+    if len(tmp) == 0:
+        return {"Error": "Book does not exist"}
+    elif len(tmp) > 1:
+        return {"Error": "Multiple IDs found error"}
+    else:
+        identifier_string = tmp[0][0] # cursor.fetchall returns a list of tuples. The tuple in question will contain just one element, which is a string of the different IDs.
+        if not identifier_string or identifier_string == "" or len(identifier_string) < 3: #picking some arbitrary number just in case there are blanks. TODO: rewrite this.
+            return {"Error": "No identifiers exist"}
+        for entry in identifier_string.split("; "):
+            entry = entry.strip()
+            parts = entry.split(" : ", 1)
+            if len(parts) != 2:
+                continue
+
+            id_type    = parts[0].strip()
+            value_part = parts[1].strip()
+
+            if id_type == "OCLC":
+                value     = re.sub(r"^\(OCoLC\)(oc[a-z]+)?", "", value_part)
+                record    = {"value": value}
+            else:
+                match = re.match(r"^(\S+)\s+(\(.+\))$", value_part)
+                if match:
+                    record = {"value": match.group(1), "qualifier": match.group(2)}
+                else:
+                    record = {"value": value_part}
+
+            result.setdefault(id_type, []).append(record)
+
+    return result
+
+#Update Function
+def set_borrower(borrower: str, id: str, cursor) -> str:
+    borrower_name = f"{borrower}"
+    book_id = int(f"{id}")
+    cursor.execute("SELECT * FROM LIBRARY WHERE ID LIKE ?", (book_id,))
+    tmp = cursor.fetchall()
+    if len(tmp) == 0:
+        return "Book does not exist"
+    elif len(tmp) > 1:
+        return "Multiple IDs found error"
+    else:
+        cursor.execute("UPDATE LIBRARY SET BORROWER = ? WHERE ID = ?", (borrower_name, book_id))
+        return f"Successfully updated Borrower {borrower} into Library for book with {id} ID."
