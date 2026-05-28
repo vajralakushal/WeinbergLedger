@@ -12,15 +12,18 @@ CORS(app)
 
 IMG_DIR = Path("img")
 
-# isolation_level=None = autocommit; we manage write transactions explicitly
-# with BEGIN IMMEDIATE so we never hit SQLITE_BUSY_SNAPSHOT in WAL mode.
-con = sqlite3.connect(
-    "library.db",
-    check_same_thread=False,
-    timeout=30,
-    isolation_level=None,
-)
-con.execute("PRAGMA journal_mode=WAL;")
+def initialize_con():
+
+    # isolation_level=None = autocommit; we manage write transactions explicitly
+    # with BEGIN IMMEDIATE so we never hit SQLITE_BUSY_SNAPSHOT in WAL mode.
+    con = sqlite3.connect(
+        "library.db",
+        check_same_thread=False,
+        #timeout=30,
+        isolation_level=None,
+    )
+    con.execute("PRAGMA journal_mode=WAL;")
+    return con
 
 
 @app.route("/api/search")
@@ -28,8 +31,10 @@ def search_endpoint():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify([])
+    con = initialize_con()
     cur = con.cursor()
     rows = search(query, cur)
+    con.close()
     columns = [d[0] for d in cur.description]
     return jsonify([dict(zip(columns, row)) for row in rows])
 
@@ -39,11 +44,13 @@ def thumbnail(book_id):
     img_path = IMG_DIR / f"{book_id}.jpg"
     if img_path.exists():
         return send_file(img_path.resolve(), mimetype="image/jpeg")
-
+    con = initialize_con()
     cur = con.cursor()
     identifiers = extract_identifers(book_id, cur)
     if "Error" in identifiers:
+        con.close()
         return "", 404
+    con.close()
 
     key_map = [("LC", "lccn"), ("ISBN", "isbn"), ("OCLC", "oclc")]
     for db_key, ol_key in key_map:
@@ -68,6 +75,7 @@ def thumbnail(book_id):
 def update_borrower(book_id):
     data = request.get_json(silent=True) or {}
     name = data.get("name", "").strip()
+    con = initialize_con()
     cur = con.cursor()
     try:
         con.execute("BEGIN IMMEDIATE")
@@ -81,6 +89,7 @@ def update_borrower(book_id):
         if "locked" in str(e).lower():
             return jsonify({"ok": False, "error": "Database is locked by another process (close the Jupyter notebook connection and retry)."}), 504
         raise
+    con.close()
     return jsonify({"ok": True})
 
 

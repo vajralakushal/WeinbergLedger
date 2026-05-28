@@ -1,4 +1,5 @@
 env
+csvs
 Weinberg_Library_9_312_ascii.csv
 ./__pycache__
 .claude
