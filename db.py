@@ -76,7 +76,12 @@ def creationDateSearch(creationDate, cursor):
 def libIdentifierSearch(libId, cursor):
     search_pattern = f"%{libId}%"
     cursor.execute("SELECT * FROM LIBRARY WHERE IDENTIFIER LIKE ?", (search_pattern,))
-    return cursor.fetchall()    
+    return cursor.fetchall()
+
+def creator(libId, cursor):
+    search_pattern = f"%{libId}%"
+    cursor.execute("SELECT * FROM LIBRARY WHERE CREATOR LIKE ?", (search_pattern,))
+    return cursor.fetchall()      
 
 def search(search_text,cursor):
 
@@ -87,6 +92,7 @@ def search(search_text,cursor):
     for formated in token_list:
         tmp = set([])    
         tmp.update(set(titleSearch(formated, cursor)))
+        tmp.update(set(creator(formated, cursor)))
         tmp.update(set(ownerSearch(formated, cursor)))
         tmp.update(set(locationSearch(formated, cursor)))
         tmp.update(set(borrowerSearch(formated, cursor)))
