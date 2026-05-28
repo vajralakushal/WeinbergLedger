@@ -5,7 +5,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
-from db import search, extract_identifers, set_borrower
+from db import search, extract_identifers, set_borrower, set_location
 
 app = Flask(__name__)
 CORS(app)
@@ -92,6 +92,26 @@ def update_borrower(book_id):
     con.close()
     return jsonify({"ok": True})
 
+@app.route("/api/book/<int:book_id>/location", methods=["PATCH"])
+def update_location(book_id):
+    data = request.get_json(silent=True) or {}
+    location = data.get("location", "").strip()
+    con = initialize_con()
+    cur = con.cursor()
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        set_location(location, book_id, cur)
+        con.execute("COMMIT")
+    except sqlite3.OperationalError as e:
+        try:
+            con.execute("ROLLBACK")
+        except Exception:
+            pass
+        if "locked" in str(e).lower():
+            return jsonify({"ok": False, "error": "Database is locked by another process (close the Jupyter notebook connection and retry)."}), 504
+        raise
+    con.close()
+    return jsonify({"ok": True})
 
 if __name__ == "__main__":
     app.run(port=5004, debug=True, use_reloader=False)

@@ -166,3 +166,17 @@ def set_borrower(borrower: str, id: str, cursor) -> str:
     else:
         cursor.execute("UPDATE LIBRARY SET BORROWER = ? WHERE ID = ?", (borrower_name, book_id))
         return f"Successfully updated Borrower {borrower} into Library for book with {id} ID."
+
+def set_location(location: str, id: str, cursor) -> str:
+    location_name = f"{location}"
+    book_id = int(f"{id}")
+    cursor.execute("SELECT * FROM LIBRARY WHERE ID LIKE ?", (book_id,))
+    tmp = cursor.fetchall()
+    if len(tmp) == 0:
+        return "Book does not exist"
+    elif len(tmp) > 1:
+        return "Multiple IDs found error"
+    else:
+        cursor.execute("UPDATE LIBRARY SET LOCATION = ? WHERE ID = ?", (location_name, book_id))
+        return f"Successfully updated Location {location} into Library for book with {id} ID."
+
