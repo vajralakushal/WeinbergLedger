@@ -94,8 +94,8 @@
   border-bottom: 1px solid #f0ebe4;
 }
 
-/* ── Borrower editable field ── */
-.borrower-display {
+/* ── Editable fields (Borrower, Location, …) ── */
+.editable-display {
   cursor: pointer;
   text-decoration: underline;
   text-decoration-style: dashed;
@@ -104,11 +104,11 @@
   transition: text-decoration-color 0.15s;
 }
 
-.borrower-display:hover {
+.editable-display:hover {
   text-decoration-color: #666;
 }
 
-.borrower-input {
+.editable-input {
   font-size: inherit;
   font-family: inherit;
   color: inherit;
@@ -121,13 +121,13 @@
   background: #fafaf8;
 }
 
-.borrower-input:focus {
+.editable-input:focus {
   border-color: #5a4030;
   box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
 }
 
-/* ── Borrower save error ── */
-.borrower-error {
+/* ── Save error ── */
+.edit-error {
   display: block;
   margin-top: 4px;
   font-size: 0.8rem;

@@ -9,17 +9,27 @@ const FIELDS = [
   { key: "SUBJECT",       label: "Subject" },
   { key: "CREATION_DATE", label: "Year" },
   { key: "OWNER",         label: "Owner" },
-  { key: "BORROWER",      label: "Borrower", editable: true },
-  { key: "LOCATION",      label: "Location" },
+  { key: "BORROWER",      label: "Borrower", editable: true, endpoint: "borrower", payloadKey: "name" },
+  { key: "LOCATION",      label: "Location", editable: true, endpoint: "location", payloadKey: "location" },
   { key: "IDENTIFIER",    label: "Identifier" },
   { key: "ID",            label: "ID" },
 ];
 
-export default function BookModal({ book, onClose, onBorrowerUpdate }) {
+export default function BookModal({ book, onClose, onFieldUpdate }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(null); // null=loading, false=none, string=url
-  const [isEditing, setIsEditing]       = useState(false);
-  const [borrower, setBorrower]         = useState(book.BORROWER ?? "");
-  const [borrowerError, setBorrowerError] = useState(null);
+
+  // Which field key is currently open for editing (null = none)
+  const [editingField, setEditingField] = useState(null);
+
+  // Live values for editable fields while typing
+  const [editValues, setEditValues] = useState({
+    BORROWER: book.BORROWER ?? "",
+    LOCATION: book.LOCATION ?? "",
+  });
+
+  // Per-field save errors
+  const [editErrors, setEditErrors] = useState({});
+
   const inputRef = useRef(null);
 
   // Thumbnail fetch
@@ -39,46 +49,56 @@ export default function BookModal({ book, onClose, onBorrowerUpdate }) {
     return () => { cancelled = true; };
   }, [book.ID]);
 
-  // Focus input on edit start
+  // Focus the input whenever a field becomes active
   useEffect(() => {
-    if (isEditing) inputRef.current?.focus();
-  }, [isEditing]);
+    if (editingField) inputRef.current?.focus();
+  }, [editingField]);
 
-  // Escape to close
+  // Escape: cancel active edit first; close modal if none open
   useEffect(() => {
-    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    const handler = (e) => {
+      if (e.key !== "Escape") return;
+      if (editingField) {
+        setEditValues((prev) => ({ ...prev, [editingField]: book[editingField] ?? "" }));
+        setEditingField(null);
+      } else {
+        onClose();
+      }
+    };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
+  }, [editingField, book, onClose]);
 
-  const commitBorrower = useCallback(async () => {
-    if (!isEditing) return;
-    setIsEditing(false);
-    setBorrowerError(null);
+  const startEditing = useCallback((fieldKey) => {
+    setEditingField(fieldKey);
+    setEditErrors((prev) => ({ ...prev, [fieldKey]: null }));
+  }, []);
+
+  const commitEdit = useCallback(async (fieldKey, endpoint, payloadKey) => {
+    if (editingField !== fieldKey) return;
+    setEditingField(null);
+    const value = editValues[fieldKey];
     try {
-      const res = await fetch(`http://localhost:5004/api/book/${book.ID}/borrower`, {
+      const res = await fetch(`http://localhost:5004/api/book/${book.ID}/${endpoint}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: borrower }),
+        body: JSON.stringify({ [payloadKey]: value }),
       });
       const data = await res.json();
       if (!data.ok) {
-        setBorrowerError(data.error ?? "Save failed.");
+        setEditErrors((prev) => ({ ...prev, [fieldKey]: data.error ?? "Save failed." }));
         return;
       }
-      onBorrowerUpdate(book.ID, borrower);
+      onFieldUpdate(book.ID, fieldKey, value);
     } catch {
-      setBorrowerError("Could not reach server.");
+      setEditErrors((prev) => ({ ...prev, [fieldKey]: "Could not reach server." }));
     }
-  }, [isEditing, book.ID, borrower, onBorrowerUpdate]);
+  }, [editingField, editValues, book.ID, onFieldUpdate]);
 
-  const handleBorrowerKey = (e) => {
-    if (e.key === "Enter") commitBorrower();
-    if (e.key === "Escape") {
-      setBorrower(book.BORROWER ?? "");
-      setIsEditing(false);
-    }
-  };
+  const cancelEdit = useCallback((fieldKey) => {
+    setEditValues((prev) => ({ ...prev, [fieldKey]: book[fieldKey] ?? "" }));
+    setEditingField(null);
+  }, [book]);
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -93,36 +113,44 @@ export default function BookModal({ book, onClose, onBorrowerUpdate }) {
 
         <table className="modal-detail-table">
           <tbody>
-            {FIELDS.map(({ key, label, editable }) => {
-              const value = key === "BORROWER" ? borrower : (book[key] ?? "");
+            {FIELDS.map(({ key, label, editable, endpoint, payloadKey }) => {
+              const displayValue = editable ? editValues[key] : (book[key] ?? "");
+              const isActive     = editable && editingField === key;
+              const fieldError   = editErrors[key];
+
               return (
                 <tr key={key}>
                   <th>{label}</th>
                   <td>
-                    {editable && isEditing ? (
+                    {isActive ? (
                       <input
                         ref={inputRef}
-                        className="borrower-input"
-                        value={borrower}
-                        onChange={(e) => setBorrower(e.target.value)}
-                        onKeyDown={handleBorrowerKey}
-                        onBlur={commitBorrower}
+                        className="editable-input"
+                        value={editValues[key]}
+                        onChange={(e) =>
+                          setEditValues((prev) => ({ ...prev, [key]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter")  commitEdit(key, endpoint, payloadKey);
+                          if (e.key === "Escape") cancelEdit(key);
+                        }}
+                        onBlur={() => commitEdit(key, endpoint, payloadKey)}
                       />
                     ) : editable ? (
                       <>
                         <span
-                          className="borrower-display"
-                          onClick={() => { setIsEditing(true); setBorrowerError(null); }}
+                          className="editable-display"
+                          onClick={() => startEditing(key)}
                           title="Click to edit"
                         >
-                          {value || <em className="modal-empty">—</em>}
+                          {displayValue || <em className="modal-empty">—</em>}
                         </span>
-                        {borrowerError && (
-                          <span className="borrower-error"> {borrowerError}</span>
+                        {fieldError && (
+                          <span className="edit-error">{fieldError}</span>
                         )}
                       </>
                     ) : (
-                      value || <em className="modal-empty">—</em>
+                      displayValue || <em className="modal-empty">—</em>
                     )}
                   </td>
                 </tr>

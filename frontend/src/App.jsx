@@ -46,12 +46,12 @@ export default function App() {
     if (e.key === "Enter") runSearch();
   };
 
-  // Sync borrower change back into the results table
-  const handleBorrowerUpdate = useCallback((id, name) => {
+  // Sync any editable field change back into the results table and open modal
+  const handleFieldUpdate = useCallback((id, fieldKey, value) => {
     setRows((prev) =>
-      prev?.map((r) => r.ID === id ? { ...r, BORROWER: name } : r) ?? prev
+      prev?.map((r) => r.ID === id ? { ...r, [fieldKey]: value } : r) ?? prev
     );
-    setSelectedBook((prev) => prev?.ID === id ? { ...prev, BORROWER: name } : prev);
+    setSelectedBook((prev) => prev?.ID === id ? { ...prev, [fieldKey]: value } : prev);
   }, []);
 
   return (
@@ -118,7 +118,7 @@ export default function App() {
         <BookModal
           book={selectedBook}
           onClose={() => setSelectedBook(null)}
-          onBorrowerUpdate={handleBorrowerUpdate}
+          onFieldUpdate={handleFieldUpdate}
         />
       )}
     </div>
