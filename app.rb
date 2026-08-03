@@ -148,26 +148,50 @@ BOOK_COLUMNS = %w[
 
 # ── OpenLibrary metadata lookup ────────────────────────────────────────────────
 
+# OpenLibrary asks clients to identify themselves; a descriptive UA also avoids
+# aggressive throttling of the generic "Ruby" agent.
+OPENLIBRARY_USER_AGENT   = 'WeinbergLedger/1.0 (shared grad library tool)'.freeze
+OPENLIBRARY_MAX_ATTEMPTS = 3
+OPENLIBRARY_RETRY_DELAY  = 0.5 # seconds between retries
+
 def http_get(uri)
+  req = Net::HTTP::Get.new(uri.request_uri)
+  req['User-Agent'] = OPENLIBRARY_USER_AGENT
   Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == 'https',
                   read_timeout: 8, open_timeout: 6) do |http|
-    http.get(uri.request_uri)
+    http.request(req)
   end
 end
 
 # Look up one bib key (e.g. "ISBN:9780131118928") via the OpenLibrary Books API.
-# Returns the raw data hash for that key, or nil if not found / on any error.
-# Set DISABLE_OPENLIBRARY=1 to force offline behaviour (used in tests).
+# Returns a status hash so the caller can tell "genuinely not in OpenLibrary"
+# apart from "the lookup could not complete":
+#   { status: :ok, data: {...} } | { status: :not_found } | { status: :error, detail: "…" }
+# Transient failures (timeout, non-200, network/SSL error) are retried a few
+# times before giving up. Set DISABLE_OPENLIBRARY to '1' (not found) or 'error'
+# to force offline behaviour in tests.
 def openlibrary_lookup(bibkey)
-  return nil if ENV['DISABLE_OPENLIBRARY'] == '1'
+  return { status: :error }     if ENV['DISABLE_OPENLIBRARY'] == 'error'
+  return { status: :not_found } if ENV['DISABLE_OPENLIBRARY'] == '1'
 
-  uri  = URI("https://openlibrary.org/api/books?bibkeys=#{URI.encode_www_form_component(bibkey)}&format=json&jscmd=data")
-  resp = http_get(uri)
-  return nil unless resp.is_a?(Net::HTTPOK)
+  uri        = URI("https://openlibrary.org/api/books?bibkeys=#{URI.encode_www_form_component(bibkey)}&format=json&jscmd=data")
+  last_error = nil
 
-  JSON.parse(resp.body)[bibkey]
-rescue StandardError
-  nil
+  OPENLIBRARY_MAX_ATTEMPTS.times do |i|
+    begin
+      resp = http_get(uri)
+      if resp.is_a?(Net::HTTPOK)
+        data = JSON.parse(resp.body)[bibkey]
+        return data ? { status: :ok, data: data } : { status: :not_found }
+      end
+      last_error = "HTTP #{resp.code}" # non-200 → transient, retry
+    rescue StandardError => e
+      last_error = "#{e.class}: #{e.message}"
+    end
+    sleep(OPENLIBRARY_RETRY_DELAY) if i < OPENLIBRARY_MAX_ATTEMPTS - 1
+  end
+
+  { status: :error, detail: last_error }
 end
 
 # Best-effort: find an ISBN from title (+ creator) via the OpenLibrary Search
@@ -415,10 +439,15 @@ get '/api/lookup' do
 
   halt 400, { ok: false, error: 'Provide an isbn, lccn, or oclc.' }.to_json if bibkey.nil?
 
-  data = openlibrary_lookup(bibkey)
-  halt 404, { ok: false, error: 'No match found for that identifier.' }.to_json if data.nil?
-
-  { ok: true, book: map_openlibrary(data) }.to_json
+  result = openlibrary_lookup(bibkey)
+  case result[:status]
+  when :ok
+    { ok: true, book: map_openlibrary(result[:data]) }.to_json
+  when :not_found
+    halt 404, { ok: false, error: 'No record found in OpenLibrary for that identifier. You can enter the details manually.' }.to_json
+  else # :error
+    halt 503, { ok: false, error: 'The lookup service is temporarily unavailable — please try again, or enter the details manually.' }.to_json
+  end
 end
 
 # Bulk-add books from CSV text (same shape as the source spreadsheet). Requires

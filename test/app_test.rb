@@ -1,11 +1,27 @@
 ENV['RACK_ENV'] = 'test'
 
 require 'minitest/autorun'
+require 'minitest/mock'
 require 'rack/test'
 require 'sqlite3'
 require 'json'
 require 'fileutils'
 require 'tmpdir'
+
+# Minimal stand-in for a Net::HTTP response, so lookup tests need no network.
+class FakeResp
+  def initialize(ok:, body: '', code: '200')
+    @ok = ok
+    @body = body
+    @code = code
+  end
+
+  def is_a?(klass)
+    klass == Net::HTTPOK ? @ok : super
+  end
+
+  attr_reader :body, :code
+end
 
 # Point the app at a throwaway DB + image dir BEFORE loading it, so tests
 # never touch the real library.db.
@@ -294,9 +310,66 @@ class AppTest < Minitest::Test
     assert_equal 400, last_response.status
   end
 
-  def test_lookup_returns_404_when_offline_or_not_found
-    get '/api/lookup', isbn: '9999999999' # DISABLE_OPENLIBRARY -> nil -> 404
+  def test_lookup_returns_404_when_genuinely_not_found
+    get '/api/lookup', isbn: '9999999999' # DISABLE_OPENLIBRARY='1' -> :not_found -> 404
     assert_equal 404, last_response.status
+  end
+
+  def test_lookup_returns_503_on_transient_error
+    ENV['DISABLE_OPENLIBRARY'] = 'error'
+    get '/api/lookup', isbn: '9781470418847' # a valid ISBN, but service errors
+    assert_equal 503, last_response.status
+    assert_match(/temporarily unavailable/i, JSON.parse(last_response.body)['error'])
+  ensure
+    ENV['DISABLE_OPENLIBRARY'] = '1'
+  end
+
+  def test_openlibrary_lookup_ok_and_not_found
+    ENV.delete('DISABLE_OPENLIBRARY')
+    found = FakeResp.new(ok: true, body: { 'ISBN:1' => { 'title' => 'T' } }.to_json)
+    stub(:http_get, ->(_uri) { found }) do
+      r = openlibrary_lookup('ISBN:1')
+      assert_equal :ok, r[:status]
+      assert_equal 'T', r[:data]['title']
+    end
+
+    empty = FakeResp.new(ok: true, body: '{}')
+    stub(:http_get, ->(_uri) { empty }) do
+      assert_equal :not_found, openlibrary_lookup('ISBN:1')[:status]
+    end
+  ensure
+    ENV['DISABLE_OPENLIBRARY'] = '1'
+  end
+
+  def test_openlibrary_lookup_retries_then_errors_on_transient_failure
+    ENV.delete('DISABLE_OPENLIBRARY')
+    calls = 0
+    raising = ->(_uri) { calls += 1; raise Errno::ECONNREFUSED }
+    stub(:http_get, raising) do
+      stub(:sleep, nil) do # don't actually wait between retries
+        assert_equal :error, openlibrary_lookup('ISBN:1')[:status]
+      end
+    end
+    assert_equal 3, calls # retried up to OPENLIBRARY_MAX_ATTEMPTS
+  ensure
+    ENV['DISABLE_OPENLIBRARY'] = '1'
+  end
+
+  def test_openlibrary_lookup_retries_on_non_200_then_succeeds
+    ENV.delete('DISABLE_OPENLIBRARY')
+    responses = [
+      FakeResp.new(ok: false, code: '503'),
+      FakeResp.new(ok: true, body: { 'ISBN:1' => { 'title' => 'Recovered' } }.to_json),
+    ]
+    stub(:http_get, ->(_uri) { responses.shift }) do
+      stub(:sleep, nil) do
+        r = openlibrary_lookup('ISBN:1')
+        assert_equal :ok, r[:status]
+        assert_equal 'Recovered', r[:data]['title']
+      end
+    end
+  ensure
+    ENV['DISABLE_OPENLIBRARY'] = '1'
   end
 
   def test_map_openlibrary_maps_fields
