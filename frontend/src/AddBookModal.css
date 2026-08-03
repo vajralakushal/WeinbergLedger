@@ -108,3 +108,139 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Tabs ── */
+.add-book-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.add-book-tab {
+  background: none;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  color: #5a4030;
+  cursor: pointer;
+}
+
+.add-book-tab.active {
+  background: #2c2418;
+  color: #f5f0e8;
+  border-color: #2c2418;
+}
+
+/* ── Identifier lookup ── */
+.lookup-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.lookup-type,
+.lookup-input,
+.lookup-btn {
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #222;
+}
+
+.lookup-input {
+  flex: 1;
+}
+
+.lookup-input:focus,
+.lookup-type:focus {
+  outline: none;
+  border-color: #5a4030;
+  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+}
+
+.lookup-btn {
+  background: #5a4030;
+  color: #f5f0e8;
+  border-color: #5a4030;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.lookup-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.lookup-msg {
+  margin: 0 0 14px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: #1e7a46;
+}
+
+/* ── Bulk CSV ── */
+.bulk-help {
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: #555;
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.bulk-help code {
+  background: #f0ece4;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+}
+
+.bulk-file {
+  margin-bottom: 10px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+}
+
+.bulk-textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  padding: 10px;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  background: #fafaf8;
+  color: #222;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.bulk-textarea:focus {
+  outline: none;
+  border-color: #5a4030;
+  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+}
+
+.bulk-report {
+  margin-top: 12px;
+}
+
+.bulk-skipped-title {
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin: 8px 0 4px;
+}
+
+.bulk-skipped-list {
+  margin: 0;
+  padding-left: 20px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.82rem;
+  color: #555;
+  max-height: 160px;
+  overflow-y: auto;
+}

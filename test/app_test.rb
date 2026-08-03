@@ -12,6 +12,7 @@ require 'tmpdir'
 TMP_DIR = Dir.mktmpdir('weinberg-test')
 ENV['LIBRARY_DB']      = File.join(TMP_DIR, 'test_library.db')
 ENV['LIBRARY_IMG_DIR'] = File.join(TMP_DIR, 'img')
+ENV['DISABLE_OPENLIBRARY'] = '1' # keep tests offline + deterministic
 
 # Seed a minimal LIBRARY table with a couple of books.
 def seed_db(path)
@@ -284,6 +285,130 @@ class AppTest < Minitest::Test
     refute_nil entry
     assert_nil entry['BOOK_TITLE']              # LEFT JOIN: row is gone
     assert_equal 'Quantum Mechanics', entry['OLD_VALUE'] # but title survives here
+  end
+
+  # ── Identifier lookup / OpenLibrary mapping ───────────────────────────────
+
+  def test_lookup_requires_an_identifier_param
+    get '/api/lookup'
+    assert_equal 400, last_response.status
+  end
+
+  def test_lookup_returns_404_when_offline_or_not_found
+    get '/api/lookup', isbn: '9999999999' # DISABLE_OPENLIBRARY -> nil -> 404
+    assert_equal 404, last_response.status
+  end
+
+  def test_map_openlibrary_maps_fields
+    data = {
+      'title'    => 'Introduction to Topology',
+      'subtitle' => 'Pure and Applied',
+      'authors'  => [{ 'name' => 'Colin Adams' }, { 'name' => 'Robert Franzosa' }],
+      'publishers'     => [{ 'name' => 'Pearson' }],
+      'publish_places' => [{ 'name' => 'Upper Saddle River' }],
+      'publish_date'   => '2008',
+      'subjects'       => [{ 'name' => 'Topology' }, 'Mathematics'],
+      'identifiers'    => { 'isbn_13' => ['9780131848696'], 'lccn' => ['2007041561'] },
+    }
+    m = map_openlibrary(data)
+    assert_equal 'Introduction to Topology: Pure and Applied', m['TITLE']
+    assert_equal 'Colin Adams; Robert Franzosa', m['CREATOR']
+    assert_equal 'Upper Saddle River : Pearson, 2008', m['PUBLISHER']
+    assert_equal '2008', m['CREATION_DATE']
+    assert_equal 'Topology; Mathematics', m['SUBJECT']
+    assert_equal 'LC : 2007041561; ISBN : 9780131848696', m['IDENTIFIER']
+  end
+
+  def test_identifier_has_isbn_or_lc
+    assert identifier_has_isbn_or_lc?('LC : 69017408')
+    assert identifier_has_isbn_or_lc?('OCLC : (OCoLC)123; ISBN : 3764354909')
+    refute identifier_has_isbn_or_lc?('OCLC : (OCoLC)36307953')
+    refute identifier_has_isbn_or_lc?('')
+    refute identifier_has_isbn_or_lc?(nil)
+  end
+
+  # ── Bulk CSV parsing (pure) ───────────────────────────────────────────────
+
+  def test_parse_bulk_csv_maps_columns_and_line_numbers
+    csv = <<~CSV
+      Owner,Borrower,Shelf,DD,Title,Creator,Publisher,Edition,Series,Notes,Subject,Creation Date,Identifier
+      Alex Lu,,3,QA1,Algebra,Lang,Springer,,,,Math,2002,ISBN : 038795385X
+    CSV
+    rows = parse_bulk_csv(csv)
+    assert_equal 1, rows.length
+    r = rows.first
+    assert_equal 2, r[:line]
+    assert_equal 'Algebra',  r[:values]['TITLE']
+    assert_equal 'Alex Lu',  r[:values]['OWNER']
+    assert_equal '3',        r[:values]['LOCATION'] # Shelf -> LOCATION
+    assert_equal 'ISBN : 038795385X', r[:values]['IDENTIFIER']
+    refute r[:values].key?('DD') # dropped column
+  end
+
+  def test_parse_bulk_csv_missing_required_headers_raises
+    err = assert_raises(ArgumentError) do
+      parse_bulk_csv("Owner,Title\nAlex,Algebra\n") # no Identifier column
+    end
+    assert_match(/Identifier/i, err.message)
+  end
+
+  # ── Bulk import endpoint ──────────────────────────────────────────────────
+
+  def test_bulk_requires_name
+    post '/api/books/bulk', { csv: "Owner,Title,Identifier\nA,B,ISBN : 1\n" }.to_json, JSON_HEADERS
+    assert_equal 400, last_response.status
+  end
+
+  def test_bulk_missing_headers_returns_400
+    post '/api/books/bulk', { editor: 'K', csv: "Owner,Title\nA,B\n" }.to_json, JSON_HEADERS
+    assert_equal 400, last_response.status
+    assert_match(/Identifier/i, JSON.parse(last_response.body)['error'])
+  end
+
+  def test_bulk_imports_valid_rows_and_audits
+    csv = <<~CSV
+      Owner,Title,Creator,Identifier
+      Alex Lu,Algebra,Lang,ISBN : 038795385X
+      Sanjay,Analysis,Rudin,LC : 76087199
+    CSV
+    post '/api/books/bulk', { editor: 'Kushal', csv: csv }.to_json, JSON_HEADERS
+    assert last_response.ok?
+    body = JSON.parse(last_response.body)
+    assert_equal 2, body['added'].length
+    assert_empty body['skipped']
+
+    # Both books exist and each produced an ADDED audit row.
+    titles = with_db { |db| db.execute("SELECT TITLE FROM LIBRARY WHERE TITLE IN ('Algebra','Analysis')") }.map { |r| r['TITLE'] }
+    assert_equal %w[Algebra Analysis], titles.sort
+    added_audits = audit_rows.select { |a| a['FIELD'] == 'ADDED' }
+    assert_equal 2, added_audits.length
+    assert(added_audits.all? { |a| a['EDITOR'] == 'Kushal' && !a['IP'].nil? })
+  end
+
+  def test_bulk_skips_rows_missing_required_fields
+    csv = <<~CSV
+      Owner,Title,Identifier
+      ,No Owner,ISBN : 1
+      Alex,Good Book,ISBN : 2
+    CSV
+    post '/api/books/bulk', { editor: 'K', csv: csv }.to_json, JSON_HEADERS
+    body = JSON.parse(last_response.body)
+    assert_equal 1, body['added'].length
+    assert_equal 1, body['skipped'].length
+    assert_equal 2, body['skipped'][0]['line']
+    assert_match(/Owner/i, body['skipped'][0]['reason'])
+  end
+
+  def test_bulk_skips_rows_without_isbn_or_lc_when_offline
+    csv = <<~CSV
+      Owner,Title,Identifier
+      Alex,No Identifier Book,OCLC : (OCoLC)123
+    CSV
+    post '/api/books/bulk', { editor: 'K', csv: csv }.to_json, JSON_HEADERS
+    body = JSON.parse(last_response.body)
+    assert_empty body['added']
+    assert_equal 1, body['skipped'].length
+    assert_match(/ISBN or LC/i, body['skipped'][0]['reason'])
   end
 
   # ── Thumbnail (no network paths only) ─────────────────────────────────────

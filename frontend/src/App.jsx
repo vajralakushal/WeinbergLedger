@@ -91,14 +91,30 @@ export default function App() {
     setRows((prev) => (prev ? [newBook, ...prev] : prev));
   }, []);
 
+  // Return to a fresh home screen from anywhere.
+  const goHome = useCallback(() => {
+    setView("search");
+    setSelectedBook(null);
+    setShowAddBook(false);
+    setRows(null);
+    setError(null);
+    setQuery("");
+  }, []);
+
   return (
     <div className="page">
       {view === "audit" ? (
-        <AuditLog onBack={() => setView("search")} />
+        <AuditLog onBack={goHome} />
       ) : (
       <div className="search-card">
         <div className="header-row">
-          <h1 className="title">Weinberg Library Search</h1>
+          <h1
+            className="title clickable-title"
+            onClick={goHome}
+            title="Go to home"
+          >
+            Weinberg Library Search
+          </h1>
           <button className="add-book-open" onClick={() => setShowAddBook(true)}>
             ➕ Add book
           </button>

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import AddBookModal from "./AddBookModal";
@@ -66,5 +66,62 @@ describe("AddBookModal", () => {
 
     expect(await screen.findByText(/Added .*Real Analysis.* \(ID 42\)/)).toBeInTheDocument();
     expect(onAdded).toHaveBeenCalledWith({ ID: 42, TITLE: "Real Analysis" });
+  });
+
+  it("auto-populates fields from an identifier lookup", async () => {
+    global.fetch = vi.fn((url) => {
+      if (String(url).includes("/api/lookup")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ ok: true, book: { TITLE: "Quantum Mechanics", CREATOR: "Griffiths" } }),
+        });
+      }
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+
+    render(<AddBookModal onClose={noop} onAdded={noop} editorName="Kushal" onEditorNameChange={noop} />);
+    await userEvent.type(screen.getByPlaceholderText(/auto-fill/), "9780131118928");
+    await userEvent.click(screen.getByRole("button", { name: /Look up/ }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Title/)).toHaveValue("Quantum Mechanics");
+    });
+    expect(screen.getByLabelText(/Creator/)).toHaveValue("Griffiths");
+  });
+});
+
+describe("AddBookModal bulk CSV", () => {
+  it("imports pasted CSV with the editor name and shows a report", async () => {
+    const spy = vi.fn();
+    global.fetch = vi.fn((url, opts) => {
+      if (String(url).includes("/api/books/bulk")) {
+        spy(url, opts);
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            ok: true,
+            added: [{ line: 2, id: 5, title: "Algebra" }],
+            skipped: [{ line: 3, reason: "No ISBN or LC" }],
+          }),
+        });
+      }
+      return Promise.reject(new Error(`unhandled fetch: ${url}`));
+    });
+
+    render(<AddBookModal onClose={noop} onAdded={noop} editorName="Kushal" onEditorNameChange={noop} />);
+    await userEvent.click(screen.getByRole("button", { name: /Bulk CSV/ }));
+
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Owner,Title,Identifier\nAlex,Algebra,ISBN : 1" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Import CSV/ }));
+
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+    const body = JSON.parse(spy.mock.calls[0][1].body);
+    expect(body).toMatchObject({ editor: "Kushal" });
+    expect(body.csv).toContain("Owner,Title,Identifier");
+
+    expect(await screen.findByText(/Added 1 book/)).toBeInTheDocument();
+    expect(screen.getByText(/Line 3: No ISBN or LC/)).toBeInTheDocument();
   });
 });

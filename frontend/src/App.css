@@ -225,3 +225,14 @@ tbody tr.clickable-row:hover td {
 .add-book-open:hover {
   background: #3d3324;
 }
+
+/* ── Clickable title (home) ── */
+.clickable-title {
+  cursor: pointer;
+}
+
+.clickable-title:hover {
+  text-decoration: underline;
+  text-decoration-color: #b0a090;
+  text-underline-offset: 4px;
+}

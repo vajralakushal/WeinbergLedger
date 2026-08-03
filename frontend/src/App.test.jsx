@@ -67,4 +67,21 @@ describe("App", () => {
       expect(String(call[0]).startsWith("/api/")).toBe(true); // relative, proxied
     });
   });
+
+  it("clicking the title returns to a fresh home (clears results + query)", async () => {
+    global.fetch = mockFetch([
+      ["whoami", { body: { ip: "1.1.1.1" } }],
+      ["search", { body: [{ ID: 1, TITLE: "QM", OWNER: "Alex" }] }],
+    ]);
+    render(<App />);
+
+    const input = screen.getByPlaceholderText("Search params");
+    await userEvent.type(input, "qm{Enter}");
+    expect(await screen.findByText("QM")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("heading", { name: "Weinberg Library Search" }));
+
+    await waitFor(() => expect(screen.queryByText("QM")).toBeNull());
+    expect(screen.getByPlaceholderText("Search params")).toHaveValue("");
+  });
 });
