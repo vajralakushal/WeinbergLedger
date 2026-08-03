@@ -1,0 +1,80 @@
+.audit-card {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.audit-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.audit-header .title {
+  text-align: left;
+}
+
+.audit-back {
+  background: none;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  color: #5a4030;
+  cursor: pointer;
+}
+
+.audit-back:hover {
+  background: #efe9e0;
+}
+
+.audit-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.audit-controls select,
+.audit-controls input {
+  font-family: system-ui, sans-serif;
+  font-size: 0.9rem;
+  padding: 7px 10px;
+  border: 1.5px solid #b0a090;
+  border-radius: 6px;
+  background: #fff;
+  color: #222;
+}
+
+.audit-controls input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.audit-controls select:focus,
+.audit-controls input:focus {
+  outline: none;
+  border-color: #5a4030;
+  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+}
+
+.audit-count {
+  font-family: system-ui, sans-serif;
+  font-size: 0.85rem;
+  color: #777;
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.muted {
+  color: #aaa;
+  font-style: normal;
+  font-size: 0.85em;
+}

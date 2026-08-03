@@ -1,6 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import "./App.css";
 import BookModal from "./BookModal";
+import AuditLog from "./AuditLog";
+import AddBookModal from "./AddBookModal";
+
+const EDITOR_NAME_KEY = "weinberg.editorName";
 
 const COLUMNS = [
   { key: "ID",            label: "ID" },
@@ -22,6 +26,28 @@ export default function App() {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [view, setView]             = useState("search"); // "search" | "audit"
+  const [showAddBook, setShowAddBook] = useState(false);
+
+  // Audit trail: who is editing (persisted per browser) and their IP.
+  const [editorName, setEditorNameState] = useState(
+    () => localStorage.getItem(EDITOR_NAME_KEY) ?? ""
+  );
+  const [clientIp, setClientIp] = useState(null);
+
+  const setEditorName = useCallback((name) => {
+    const trimmed = name.trim();
+    setEditorNameState(trimmed);
+    if (trimmed) localStorage.setItem(EDITOR_NAME_KEY, trimmed);
+    else localStorage.removeItem(EDITOR_NAME_KEY);
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/whoami")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setClientIp(data.ip))
+      .catch(() => setClientIp(null));
+  }, []);
 
   const runSearch = useCallback(async () => {
     const q = query.trim();
@@ -31,7 +57,7 @@ export default function App() {
     setRows(null);
     try {
       const res = await fetch(
-        `http://localhost:5004/api/search?q=${encodeURIComponent(q)}`
+        `/api/search?q=${encodeURIComponent(q)}`
       );
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       setRows(await res.json());
@@ -54,10 +80,29 @@ export default function App() {
     setSelectedBook((prev) => prev?.ID === id ? { ...prev, [fieldKey]: value } : prev);
   }, []);
 
+  // Drop a removed book from the current results and close the modal.
+  const handleRemove = useCallback((id) => {
+    setRows((prev) => prev?.filter((r) => r.ID !== id) ?? prev);
+    setSelectedBook(null);
+  }, []);
+
+  // Show a newly added book at the top of the current results.
+  const handleAdded = useCallback((newBook) => {
+    setRows((prev) => (prev ? [newBook, ...prev] : prev));
+  }, []);
+
   return (
     <div className="page">
+      {view === "audit" ? (
+        <AuditLog onBack={() => setView("search")} />
+      ) : (
       <div className="search-card">
-        <h1 className="title">Weinberg Library Search</h1>
+        <div className="header-row">
+          <h1 className="title">Weinberg Library Search</h1>
+          <button className="add-book-open" onClick={() => setShowAddBook(true)}>
+            ➕ Add book
+          </button>
+        </div>
 
         <div className="search-row">
           <input
@@ -113,14 +158,53 @@ export default function App() {
             )
         )}
       </div>
+      )}
 
       {selectedBook && (
         <BookModal
           book={selectedBook}
           onClose={() => setSelectedBook(null)}
           onFieldUpdate={handleFieldUpdate}
+          onRemove={handleRemove}
+          editorName={editorName}
+          onEditorNameChange={setEditorName}
         />
       )}
+
+      {showAddBook && (
+        <AddBookModal
+          onClose={() => setShowAddBook(false)}
+          onAdded={handleAdded}
+          editorName={editorName}
+          onEditorNameChange={setEditorName}
+        />
+      )}
+
+      <footer className="site-footer">
+        <span>
+          Editing as:{" "}
+          {editorName
+            ? <strong>{editorName}</strong>
+            : <em>not set — you'll be asked when you edit</em>}
+          {editorName && (
+            <button
+              className="footer-link"
+              onClick={() => {
+                const next = window.prompt("Your name (for the edit record):", editorName);
+                if (next !== null) setEditorName(next);
+              }}
+            >
+              change
+            </button>
+          )}
+        </span>
+        {view === "search" && (
+          <button className="footer-link" onClick={() => setView("audit")}>
+            View audit log →
+          </button>
+        )}
+        <span>Your IP: {clientIp ?? "…"}</span>
+      </footer>
     </div>
   );
 }

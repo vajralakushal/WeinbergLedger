@@ -1,5 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./BookModal.css";
+import { ensureEditorName } from "./ensureName";
+
+function formatTs(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d) ? iso : d.toLocaleString();
+}
 
 const FIELDS = [
   { key: "TITLE",         label: "Title" },
@@ -15,8 +22,14 @@ const FIELDS = [
   { key: "ID",            label: "ID" },
 ];
 
-export default function BookModal({ book, onClose, onFieldUpdate }) {
+export default function BookModal({ book, onClose, onFieldUpdate, onRemove, editorName, onEditorNameChange }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(null); // null=loading, false=none, string=url
+
+  // Change history (audit trail) for this book, newest first.
+  const [history, setHistory] = useState([]);
+
+  // Error from a failed remove, if any.
+  const [removeError, setRemoveError] = useState(null);
 
   // Which field key is currently open for editing (null = none)
   const [editingField, setEditingField] = useState(null);
@@ -35,7 +48,7 @@ export default function BookModal({ book, onClose, onFieldUpdate }) {
   // Thumbnail fetch
   useEffect(() => {
     let cancelled = false;
-    fetch(`http://localhost:5004/api/book/${book.ID}/thumbnail`)
+    fetch(`/api/book/${book.ID}/thumbnail`)
       .then((res) => {
         if (!res.ok) throw new Error("no image");
         return res.blob();
@@ -69,20 +82,57 @@ export default function BookModal({ book, onClose, onFieldUpdate }) {
     return () => window.removeEventListener("keydown", handler);
   }, [editingField, book, onClose]);
 
+  // Load the audit trail for this book.
+  const loadHistory = useCallback(() => {
+    fetch(`/api/book/${book.ID}/history`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setHistory(Array.isArray(data) ? data : []))
+      .catch(() => setHistory([]));
+  }, [book.ID]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  // No name, no edit. Prompt for one and remember it for future edits.
   const startEditing = useCallback((fieldKey) => {
+    const name = ensureEditorName(editorName, onEditorNameChange);
+    if (!name) return; // cancelled or empty → do not open the editor
     setEditingField(fieldKey);
     setEditErrors((prev) => ({ ...prev, [fieldKey]: null }));
-  }, []);
+  }, [editorName, onEditorNameChange]);
+
+  // Remove this book from the library (requires a name; confirmed first).
+  const removeBook = useCallback(async () => {
+    const name = ensureEditorName(editorName, onEditorNameChange);
+    if (!name) return;
+    if (!window.confirm(`Remove "${book.TITLE}" from the library? This cannot be undone.`)) return;
+
+    setRemoveError(null);
+    try {
+      const res = await fetch(`/api/book/${book.ID}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ editor: name }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setRemoveError(data.error ?? "Remove failed.");
+        return;
+      }
+      onRemove?.(book.ID);
+    } catch {
+      setRemoveError("Could not reach server.");
+    }
+  }, [editorName, onEditorNameChange, book.ID, book.TITLE, onRemove]);
 
   const commitEdit = useCallback(async (fieldKey, endpoint, payloadKey) => {
     if (editingField !== fieldKey) return;
     setEditingField(null);
     const value = editValues[fieldKey];
     try {
-      const res = await fetch(`http://localhost:5004/api/book/${book.ID}/${endpoint}`, {
+      const res = await fetch(`/api/book/${book.ID}/${endpoint}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [payloadKey]: value }),
+        body: JSON.stringify({ [payloadKey]: value, editor: editorName }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -90,10 +140,11 @@ export default function BookModal({ book, onClose, onFieldUpdate }) {
         return;
       }
       onFieldUpdate(book.ID, fieldKey, value);
+      loadHistory(); // reflect the edit we just made
     } catch {
       setEditErrors((prev) => ({ ...prev, [fieldKey]: "Could not reach server." }));
     }
-  }, [editingField, editValues, book.ID, onFieldUpdate]);
+  }, [editingField, editValues, book.ID, onFieldUpdate, editorName, loadHistory]);
 
   const cancelEdit = useCallback((fieldKey) => {
     setEditValues((prev) => ({ ...prev, [fieldKey]: book[fieldKey] ?? "" }));
@@ -158,6 +209,32 @@ export default function BookModal({ book, onClose, onFieldUpdate }) {
             })}
           </tbody>
         </table>
+
+        {history.length > 0 && (
+          <div className="modal-history">
+            <h3 className="modal-history-title">Change history</h3>
+            <ul className="modal-history-list">
+              {history.map((h, i) => (
+                <li key={i} className="modal-history-item">
+                  <span className="hist-main">
+                    <strong>{h.EDITOR}</strong> set {h.FIELD?.toLowerCase()} to{" "}
+                    {h.NEW_VALUE ? <em>&ldquo;{h.NEW_VALUE}&rdquo;</em> : <em>—</em>}
+                  </span>
+                  <span className="hist-meta">
+                    {formatTs(h.TIMESTAMP)} · {h.IP ?? "?"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button className="remove-book-btn" onClick={removeBook}>
+            🗑 Remove book
+          </button>
+          {removeError && <span className="edit-error">{removeError}</span>}
+        </div>
       </div>
     </div>
   );

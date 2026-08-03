@@ -139,3 +139,74 @@
   color: #ccc;
   font-style: normal;
 }
+
+/* ── Change history (audit trail) ── */
+.modal-history {
+  margin-top: 20px;
+  border-top: 1px solid #ece7df;
+  padding-top: 14px;
+}
+
+.modal-history-title {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a4030;
+}
+
+.modal-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.modal-history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85rem;
+  color: #333;
+}
+
+.hist-main em {
+  font-style: italic;
+  color: #5a4030;
+}
+
+.hist-meta {
+  font-size: 0.75rem;
+  color: #999;
+}
+
+/* ── Remove book action ── */
+.modal-actions {
+  margin-top: 20px;
+  border-top: 1px solid #ece7df;
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.remove-book-btn {
+  background: #fff;
+  color: #c0392b;
+  border: 1.5px solid #e0b4ae;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.remove-book-btn:hover {
+  background: #c0392b;
+  color: #fff;
+  border-color: #c0392b;
+}

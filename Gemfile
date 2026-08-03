@@ -12,3 +12,8 @@ gem 'falcon'
 gem 'thin'
 
 gem 'json'
+
+group :test do
+  gem 'minitest', '~> 5.0'
+  gem 'rack-test'
+end

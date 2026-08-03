@@ -159,3 +159,69 @@ tbody tr.clickable-row {
 tbody tr.clickable-row:hover td {
   background: #faf7f2;
 }
+
+/* ── Audit footer ── */
+.site-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: #2c2418;
+  color: #e8e0d4;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.85rem;
+  z-index: 5;
+}
+
+.site-footer strong {
+  color: #fff;
+}
+
+.site-footer em {
+  color: #b8ac98;
+  font-style: italic;
+}
+
+.footer-link {
+  margin-left: 8px;
+  background: none;
+  border: none;
+  color: #cbb994;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.footer-link:hover {
+  color: #fff;
+}
+
+/* ── Header row (title + add button) ── */
+.header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.add-book-open {
+  background: #2c2418;
+  color: #f5f0e8;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.add-book-open:hover {
+  background: #3d3324;
+}
