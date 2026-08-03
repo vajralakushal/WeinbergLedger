@@ -1,36 +1,47 @@
 .audit-card {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1120px;
+  margin: 0 auto;
+  flex: 1;
+  padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 44px) 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
+  animation: rise 0.45s ease both;
 }
 
 .audit-header {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
   flex-wrap: wrap;
 }
 
 .audit-header .title {
-  text-align: left;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+  letter-spacing: -0.01em;
+  color: var(--parchment);
+  max-width: none;
 }
 
 .audit-back {
   background: none;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.9rem;
-  color: #5a4030;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  padding: 9px 15px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--parchment);
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-.audit-back:hover {
-  background: #efe9e0;
-}
+.audit-back:hover { border-color: var(--marigold); color: var(--marigold); }
 
 .audit-controls {
   display: flex;
@@ -41,40 +52,31 @@
 
 .audit-controls select,
 .audit-controls input {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-display);
   font-size: 0.9rem;
-  padding: 7px 10px;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  background: #fff;
-  color: #222;
+  padding: 9px 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--petrol-800);
+  color: var(--parchment);
 }
 
-.audit-controls input {
-  flex: 1;
-  min-width: 200px;
-}
+.audit-controls select { font-family: var(--font-mono); font-size: 0.8rem; cursor: pointer; }
+
+.audit-controls input { flex: 1; min-width: 220px; }
+.audit-controls input::placeholder { color: var(--parchment-faint); }
 
 .audit-controls select:focus,
 .audit-controls input:focus {
   outline: none;
-  border-color: #5a4030;
-  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+  border-color: var(--marigold);
+  box-shadow: 0 0 0 3px rgba(251, 139, 36, 0.14);
 }
 
 .audit-count {
-  font-family: system-ui, sans-serif;
-  font-size: 0.85rem;
-  color: #777;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  color: var(--parchment-faint);
   white-space: nowrap;
-}
-
-.nowrap {
-  white-space: nowrap;
-}
-
-.muted {
-  color: #aaa;
-  font-style: normal;
-  font-size: 0.85em;
 }

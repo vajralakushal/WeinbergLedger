@@ -46,7 +46,7 @@ describe("App", () => {
 
     await userEvent.click(screen.getByText(/Back to search/));
     expect(
-      await screen.findByRole("heading", { name: "Weinberg Library Search" })
+      await screen.findByRole("heading", { name: "Weinberg Theory Group Library Search" })
     ).toBeInTheDocument();
   });
 
@@ -79,7 +79,7 @@ describe("App", () => {
     await userEvent.type(input, "qm{Enter}");
     expect(await screen.findByText("QM")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("heading", { name: "Weinberg Library Search" }));
+    await userEvent.click(screen.getByRole("heading", { name: "Weinberg Theory Group Library Search" }));
 
     await waitFor(() => expect(screen.queryByText("QM")).toBeNull());
     expect(screen.getByPlaceholderText("Search params")).toHaveValue("");

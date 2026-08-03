@@ -1,12 +1,84 @@
+:root {
+  /* Blue-forward field — the environment */
+  --petrol-900: #08222a;
+  --petrol-800: #0b3540;
+  --petrol-700: #0f4c5c;
+  --petrol-600: #14606f;
+
+  /* Accents */
+  --plum:           #5f0f40; /* bridge tone */
+  --crimson:        #9a031e; /* primary action — Cambridge */
+  --crimson-bright: #c21230; /* hover */
+  --orange:         #e36414; /* secondary — Austin, sparing */
+  --marigold:       #fb8b24; /* highlight / focus */
+
+  /* Ink */
+  --parchment:       #f3e9db;
+  --parchment-dim:   #cabca8;
+  --parchment-faint: #89999f;
+
+  /* Status (lightened so they read on the dark field) */
+  --danger: #ef6a72; /* lightened crimson */
+  --ok:     #7fd1a6; /* light mint */
+
+  --line:        rgba(243, 233, 219, 0.13);
+  --line-strong: rgba(243, 233, 219, 0.26);
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --shadow-panel: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: dark;
+}
+
 body {
   margin: 0;
-  background: #f5f5f0;
+  background: var(--petrol-900);
+  color: var(--parchment);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Fine halftone grain across the whole field — the "printed plate" texture */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: url("./assets/dither-grain.png") repeat;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
 }
 
 #root {
+  position: relative;
+  z-index: 1;
   min-height: 100svh;
+}
+
+/* Consistent, visible keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid var(--marigold);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--marigold);
+  color: var(--petrol-900);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

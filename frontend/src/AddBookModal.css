@@ -1,139 +1,50 @@
 .add-book-card {
-  max-width: 560px;
+  max-width: 600px;
   width: 100%;
 }
 
 .add-book-title {
   margin: 0 0 18px;
-  font-size: 1.5rem;
-  color: #1a1a1a;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+  color: var(--parchment);
 }
 
-.add-book-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
-}
-
-.add-book-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-/* Title and Owner (first two) span the full width. */
-.add-book-field:nth-child(1),
-.add-book-field:nth-child(2) {
-  grid-column: 1 / -1;
-}
-
-.add-book-label {
-  font-family: system-ui, sans-serif;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: #5a4030;
-}
-
-.add-book-label .req {
-  color: #c0392b;
-}
-
-.add-book-input {
-  font-family: system-ui, sans-serif;
-  font-size: 0.95rem;
-  padding: 8px 10px;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  background: #fafaf8;
-  color: #222;
-}
-
-.add-book-input:focus {
-  outline: none;
-  border-color: #5a4030;
-  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
-}
-
-.add-book-success {
-  color: #1e7a46;
-  font-family: system-ui, sans-serif;
-  font-size: 0.9rem;
-  margin: 12px 0 0;
-}
-
-.add-book-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.add-book-submit {
-  background: #2c2418;
-  color: #f5f0e8;
-  border: none;
-  border-radius: 6px;
-  padding: 9px 18px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.95rem;
-  cursor: pointer;
-}
-
-.add-book-submit:hover:not(:disabled) {
-  background: #3d3324;
-}
-
-.add-book-submit:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-.add-book-cancel {
-  background: none;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  padding: 9px 18px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.95rem;
-  color: #5a4030;
-  cursor: pointer;
-}
-
-.add-book-cancel:hover {
-  background: #efe9e0;
-}
-
-@media (max-width: 520px) {
-  .add-book-form {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ── Tabs ── */
+/* ══ Tabs ════════════════════════════════════════════════════════════════ */
 .add-book-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .add-book-tab {
   background: none;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  padding: 7px 14px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 0.9rem;
-  color: #5a4030;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  padding: 8px 15px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--parchment-dim);
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.add-book-tab:hover {
+  border-color: var(--marigold);
+  color: var(--marigold);
 }
 
 .add-book-tab.active {
-  background: #2c2418;
-  color: #f5f0e8;
-  border-color: #2c2418;
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: var(--parchment);
 }
 
-/* ── Identifier lookup ── */
+/* ══ Identifier lookup ═══════════════════════════════════════════════════ */
 .lookup-row {
   display: flex;
   gap: 8px;
@@ -143,104 +54,215 @@
 .lookup-type,
 .lookup-input,
 .lookup-btn {
-  font-family: system-ui, sans-serif;
-  font-size: 0.9rem;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  padding: 8px 10px;
-  background: #fff;
-  color: #222;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 10px 12px;
+  background: var(--petrol-900);
+  color: var(--parchment);
 }
 
-.lookup-input {
-  flex: 1;
+.lookup-type {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  cursor: pointer;
 }
+
+.lookup-input { flex: 1; min-width: 0; }
+.lookup-input::placeholder { color: var(--parchment-faint); }
 
 .lookup-input:focus,
 .lookup-type:focus {
   outline: none;
-  border-color: #5a4030;
-  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+  border-color: var(--marigold);
+  box-shadow: 0 0 0 3px rgba(251, 139, 36, 0.14);
 }
 
 .lookup-btn {
-  background: #5a4030;
-  color: #f5f0e8;
-  border-color: #5a4030;
+  background: none;
+  color: var(--parchment);
+  border-color: var(--line-strong);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   cursor: pointer;
   white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
 }
 
-.lookup-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+.lookup-btn:hover:not(:disabled) {
+  border-color: var(--marigold);
+  color: var(--marigold);
 }
+
+.lookup-btn:disabled { opacity: 0.55; cursor: default; }
 
 .lookup-msg {
-  margin: 0 0 14px;
-  font-family: system-ui, sans-serif;
-  font-size: 0.85rem;
-  color: #1e7a46;
+  margin: 0 0 16px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--ok);
 }
 
-/* ── Bulk CSV ── */
+/* ══ Form ════════════════════════════════════════════════════════════════ */
+.add-book-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.add-book-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.add-book-field:nth-child(1),
+.add-book-field:nth-child(2) {
+  grid-column: 1 / -1;
+}
+
+.add-book-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--parchment-faint);
+}
+
+.add-book-label .req { color: var(--danger); }
+
+.add-book-input {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  padding: 9px 11px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--petrol-900);
+  color: var(--parchment);
+}
+
+.add-book-input:focus {
+  outline: none;
+  border-color: var(--marigold);
+  box-shadow: 0 0 0 3px rgba(251, 139, 36, 0.14);
+}
+
+.add-book-success {
+  margin: 14px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ok);
+}
+
+/* ══ Actions ═════════════════════════════════════════════════════════════ */
+.add-book-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.add-book-submit {
+  background: var(--crimson);
+  color: var(--parchment);
+  border: 1px solid var(--crimson);
+  border-radius: 2px;
+  padding: 10px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.add-book-submit:hover:not(:disabled) { background: var(--crimson-bright); }
+.add-book-submit:disabled { opacity: 0.6; cursor: default; }
+
+.add-book-cancel {
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  padding: 10px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--parchment);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.add-book-cancel:hover { border-color: var(--marigold); color: var(--marigold); }
+
+/* ══ Bulk CSV ════════════════════════════════════════════════════════════ */
 .bulk-help {
-  font-family: system-ui, sans-serif;
-  font-size: 0.85rem;
-  color: #555;
-  line-height: 1.5;
-  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  color: var(--parchment-dim);
+  line-height: 1.55;
+  margin: 0 0 14px;
 }
 
 .bulk-help code {
-  background: #f0ece4;
-  padding: 1px 5px;
+  font-family: var(--font-mono);
+  background: var(--petrol-900);
+  padding: 1px 6px;
   border-radius: 3px;
   font-size: 0.8rem;
+  color: var(--marigold);
 }
 
 .bulk-file {
   margin-bottom: 10px;
-  font-family: system-ui, sans-serif;
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--parchment-dim);
 }
 
 .bulk-textarea {
   width: 100%;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.8rem;
-  padding: 10px;
-  border: 1.5px solid #b0a090;
-  border-radius: 6px;
-  background: #fafaf8;
-  color: #222;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  padding: 12px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--petrol-900);
+  color: var(--parchment);
   resize: vertical;
-  box-sizing: border-box;
 }
 
 .bulk-textarea:focus {
   outline: none;
-  border-color: #5a4030;
-  box-shadow: 0 0 0 2px rgba(90, 64, 48, 0.12);
+  border-color: var(--marigold);
+  box-shadow: 0 0 0 3px rgba(251, 139, 36, 0.14);
 }
 
-.bulk-report {
-  margin-top: 12px;
-}
+.bulk-report { margin-top: 14px; }
 
 .bulk-skipped-title {
-  font-family: system-ui, sans-serif;
-  font-size: 0.85rem;
-  color: #c0392b;
-  margin: 8px 0 4px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--danger);
+  margin: 10px 0 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .bulk-skipped-list {
   margin: 0;
   padding-left: 20px;
-  font-family: system-ui, sans-serif;
-  font-size: 0.82rem;
-  color: #555;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--parchment-dim);
   max-height: 160px;
   overflow-y: auto;
+}
+
+@media (max-width: 520px) {
+  .add-book-form { grid-template-columns: 1fr; }
+  .lookup-row { flex-wrap: wrap; }
 }

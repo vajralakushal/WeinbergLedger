@@ -103,24 +103,45 @@ export default function App() {
 
   return (
     <div className="page">
+      <header className="masthead">
+        <button className="brand" onClick={goHome} title="Go to home">
+          <span className="brand-mark">WL</span>
+          <span className="brand-name">The Weinberg Theory Group Ledger</span>
+        </button>
+        <nav className="masthead-nav">
+          {view === "search" && (
+            <button className="nav-btn" onClick={() => setView("audit")}>
+              View audit log
+            </button>
+          )}
+          <button
+            className="nav-btn nav-btn--accent"
+            onClick={() => setShowAddBook(true)}
+          >
+            Add book
+          </button>
+        </nav>
+      </header>
+      <div className="masthead-rule" aria-hidden="true" />
+
       {view === "audit" ? (
         <AuditLog onBack={goHome} />
       ) : (
-      <div className="search-card">
-        <div className="header-row">
+      <main className="console">
+        <section className="hero">
+          <p className="hero-eyebrow">Shared reference library · Weinberg theory group</p>
           <h1
             className="title clickable-title"
             onClick={goHome}
             title="Go to home"
           >
-            Weinberg Library Search
+            Weinberg Theory Group Library Search
           </h1>
-          <button className="add-book-open" onClick={() => setShowAddBook(true)}>
-            ➕ Add book
-          </button>
-        </div>
+          <p className="hero-sub">
+            Find who holds which volume — search the shelves by title, author, owner, or catalog number.
+          </p>
 
-        <div className="search-row">
+          <div className="search-row">
           <input
             className="search-input"
             type="text"
@@ -130,10 +151,11 @@ export default function App() {
             onKeyDown={handleKey}
             autoFocus
           />
-          <button className="search-btn" onClick={runSearch} aria-label="Search">
-            🔍
-          </button>
-        </div>
+            <button className="search-btn" onClick={runSearch} aria-label="Search">
+              →
+            </button>
+          </div>
+        </section>
 
         {loading && <p className="status">Searching…</p>}
         {error   && <p className="status error">Error: {error}</p>}
@@ -173,7 +195,7 @@ export default function App() {
               </div>
             )
         )}
-      </div>
+      </main>
       )}
 
       {selectedBook && (
@@ -214,11 +236,6 @@ export default function App() {
             </button>
           )}
         </span>
-        {view === "search" && (
-          <button className="footer-link" onClick={() => setView("audit")}>
-            View audit log →
-          </button>
-        )}
         <span>Your IP: {clientIp ?? "…"}</span>
       </footer>
     </div>

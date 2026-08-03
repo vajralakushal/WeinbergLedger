@@ -156,9 +156,15 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
       <button className="modal-back-btn" onClick={onClose}>← Back</button>
 
       <div className="modal-card">
-        {thumbnailSrc && (
+        {thumbnailSrc !== null && (
           <div className="modal-thumbnail-wrap">
-            <img src={thumbnailSrc} alt="Book cover" className="modal-thumbnail" />
+            {thumbnailSrc ? (
+              <img src={thumbnailSrc} alt="Book cover" className="modal-thumbnail" />
+            ) : (
+              <div className="modal-thumbnail-plate" aria-hidden="true">
+                <span>No cover on file</span>
+              </div>
+            )}
           </div>
         )}
 
