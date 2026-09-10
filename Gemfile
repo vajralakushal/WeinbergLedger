@@ -12,6 +12,10 @@ gem 'falcon'
 gem 'thin'
 
 gem 'json'
+gem 'ostruct'
+gem 'logger'
+gem 'base64'
+gem 'csv'
 
 group :test do
   gem 'minitest', '~> 5.0'

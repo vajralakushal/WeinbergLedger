@@ -152,7 +152,7 @@ BOOK_COLUMNS = %w[
 # aggressive throttling of the generic "Ruby" agent.
 OPENLIBRARY_USER_AGENT   = 'WeinbergLedger/1.0 (shared grad library tool)'.freeze
 OPENLIBRARY_MAX_ATTEMPTS = 3
-OPENLIBRARY_RETRY_DELAY  = 0.5 # seconds between retries
+OPENLIBRARY_RETRY_DELAY  = 1 # seconds between retries
 
 def http_get(uri)
   req = Net::HTTP::Get.new(uri.request_uri)
