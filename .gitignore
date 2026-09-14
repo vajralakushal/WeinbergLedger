@@ -1,7 +1,7 @@
 env
 csvs
 Weinberg_Library_9_312_ascii.csv
-./__pycache__
+__pycache__/
 .claude
 # SQLite runtime sidecar files (never commit these)
 library.db-wal
