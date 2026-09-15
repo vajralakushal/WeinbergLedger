@@ -13,6 +13,12 @@ gem 'thin'
 
 gem 'json'
 
+# Uncomment for windows
+# gem 'ostruct'
+# gem 'logger'
+# gem 'base64'
+# gem 'csv'
+
 group :test do
   gem 'minitest', '~> 5.0'
   gem 'rack-test'
