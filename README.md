@@ -126,7 +126,7 @@ gem install bundler
 ## Setup
 
 ```bash
-git clone <your-repo-url> WeinbergLedger
+git clone https://github.com/vajralakushal/WeinbergLedger.git WeinbergLedger
 cd WeinbergLedger
 
 # 1) Backend gems
@@ -163,7 +163,7 @@ cannot load such file -- ostruct (LoadError)
 
 ---
 
-## Running in development
+## Running in development (local)
 
 Open **two terminals**.
 
