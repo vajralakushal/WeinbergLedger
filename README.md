@@ -19,7 +19,7 @@ shelves, with a full **audit trail** (who changed what, from where, and when).
 2. [Repository layout](#repository-layout)
 3. [Prerequisites](#prerequisites)
 4. [Setup](#setup)
-5. [Running in development](#running-in-development)
+5. [Running in development (locally)](#running-in-development)
 6. [Tests](#tests)
 7. [Database & data](#database--data)
 8. [Building for production](#building-for-production)
@@ -162,7 +162,7 @@ cannot load such file -- ostruct (LoadError)
 
 ---
 
-## Running in development (local)
+## Running in development
 
 Open **two terminals**.
 
