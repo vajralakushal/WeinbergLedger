@@ -184,23 +184,6 @@ automatically, so both must be running.
 
 ---
 
-## Tests
-
-**Backend** (minitest + rack-test — runs against a throwaway temp DB, never
-touches `library.db`, and stays offline):
-```bash
-bundle exec ruby test/app_test.rb
-```
-
-**Frontend** (Vitest + Testing Library):
-```bash
-cd frontend
-npm test          # one-off run
-# npx vitest      # watch mode
-```
-
----
-
 ## Database & data
 
 - The catalog lives in **`library.db`** (committed, so a fresh clone already has
