@@ -66,7 +66,6 @@ WeinbergLedger/
 ├── Gemfile / Gemfile.lock # Ruby dependencies
 ├── library.db             # SQLite database (ships with the catalog)
 ├── img/                   # cached book covers (created on demand)
-├── test/app_test.rb       # backend tests (minitest + rack-test)
 ├── frontend/
 │   ├── index.html
 │   ├── vite.config.js     # dev proxy /api -> :4567, Vitest config
