@@ -1,0 +1,35 @@
+.signup-card {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  flex: 1;
+  padding: clamp(28px, 5vw, 56px) clamp(16px, 4vw, 44px) 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  animation: rise 0.45s ease both;
+}
+
+.signup-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.signup-denied {
+  margin: 0;
+}
+
+.signup-success {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}

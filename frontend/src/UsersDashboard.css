@@ -1,0 +1,48 @@
+.users-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.users-action-btn {
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--parchment);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.users-action-btn:hover {
+  border-color: var(--marigold);
+  color: var(--marigold);
+}
+
+.users-action-danger {
+  border-color: var(--crimson);
+}
+
+.users-action-danger:hover {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: var(--parchment);
+}
+
+.users-temp-password {
+  padding: 10px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--petrol-800);
+  color: var(--parchment-dim);
+}
+
+.users-temp-password strong {
+  color: var(--ok);
+  font-family: var(--font-mono);
+}

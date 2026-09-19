@@ -23,7 +23,7 @@ describe("AddBookModal", () => {
   it("requires title and owner before submitting", async () => {
     const spy = vi.fn();
     global.fetch = addFetch(spy);
-    render(<AddBookModal onClose={noop} onAdded={noop} editorName="Kushal" onEditorNameChange={noop} />);
+    render(<AddBookModal onClose={noop} onAdded={noop} authToken="tok" />);
 
     await userEvent.click(screen.getByRole("button", { name: /Add book/ }));
 
@@ -31,25 +31,12 @@ describe("AddBookModal", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("requires a name — cancelling the prompt aborts the add", async () => {
-    const spy = vi.fn();
-    global.fetch = addFetch(spy);
-    vi.spyOn(window, "prompt").mockReturnValue(null); // user cancels
-
-    render(<AddBookModal onClose={noop} onAdded={noop} editorName="" onEditorNameChange={noop} />);
-    await userEvent.type(screen.getByLabelText(/Title/), "New Book");
-    await userEvent.type(screen.getByLabelText(/Owner/), "Alex Lu");
-    await userEvent.click(screen.getByRole("button", { name: /Add book/ }));
-
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("posts the new book with the editor name and reports success", async () => {
+  it("posts the new book with the bearer token and reports success", async () => {
     const spy = vi.fn();
     const onAdded = vi.fn();
     global.fetch = addFetch(spy, { ok: true, book: { ID: 42, TITLE: "Real Analysis" } });
 
-    render(<AddBookModal onClose={noop} onAdded={onAdded} editorName="Kushal" onEditorNameChange={noop} />);
+    render(<AddBookModal onClose={noop} onAdded={onAdded} authToken="tok-123" />);
     await userEvent.type(screen.getByLabelText(/Title/), "Real Analysis");
     await userEvent.type(screen.getByLabelText(/Owner/), "Alex Lu");
     await userEvent.type(screen.getByLabelText(/Creator/), "Rudin");
@@ -59,10 +46,10 @@ describe("AddBookModal", () => {
     const [url, opts] = spy.mock.calls[0];
     expect(url).toBe("/api/book");
     expect(opts.method).toBe("POST");
+    expect(opts.headers.Authorization).toBe("Bearer tok-123");
     const body = JSON.parse(opts.body);
-    expect(body).toMatchObject({
-      TITLE: "Real Analysis", OWNER: "Alex Lu", CREATOR: "Rudin", editor: "Kushal",
-    });
+    expect(body).toMatchObject({ TITLE: "Real Analysis", OWNER: "Alex Lu", CREATOR: "Rudin" });
+    expect(body.editor).toBeUndefined(); // no client-supplied identity anymore
 
     expect(await screen.findByText(/Added .*Real Analysis.* \(ID 42\)/)).toBeInTheDocument();
     expect(onAdded).toHaveBeenCalledWith({ ID: 42, TITLE: "Real Analysis" });
@@ -79,7 +66,7 @@ describe("AddBookModal", () => {
       return Promise.reject(new Error(`unhandled fetch: ${url}`));
     });
 
-    render(<AddBookModal onClose={noop} onAdded={noop} editorName="Kushal" onEditorNameChange={noop} />);
+    render(<AddBookModal onClose={noop} onAdded={noop} authToken="tok" />);
     await userEvent.type(screen.getByPlaceholderText(/auto-fill/), "9780131118928");
     await userEvent.click(screen.getByRole("button", { name: /Look up/ }));
 
@@ -91,7 +78,7 @@ describe("AddBookModal", () => {
 });
 
 describe("AddBookModal bulk CSV", () => {
-  it("imports pasted CSV with the editor name and shows a report", async () => {
+  it("imports pasted CSV with the bearer token and shows a report", async () => {
     const spy = vi.fn();
     global.fetch = vi.fn((url, opts) => {
       if (String(url).includes("/api/books/bulk")) {
@@ -108,7 +95,7 @@ describe("AddBookModal bulk CSV", () => {
       return Promise.reject(new Error(`unhandled fetch: ${url}`));
     });
 
-    render(<AddBookModal onClose={noop} onAdded={noop} editorName="Kushal" onEditorNameChange={noop} />);
+    render(<AddBookModal onClose={noop} onAdded={noop} authToken="tok-123" />);
     await userEvent.click(screen.getByRole("button", { name: /Bulk CSV/ }));
 
     fireEvent.change(screen.getByRole("textbox"), {
@@ -117,9 +104,11 @@ describe("AddBookModal bulk CSV", () => {
     await userEvent.click(screen.getByRole("button", { name: /Import CSV/ }));
 
     await waitFor(() => expect(spy).toHaveBeenCalled());
-    const body = JSON.parse(spy.mock.calls[0][1].body);
-    expect(body).toMatchObject({ editor: "Kushal" });
+    const [, opts] = spy.mock.calls[0];
+    expect(opts.headers.Authorization).toBe("Bearer tok-123");
+    const body = JSON.parse(opts.body);
     expect(body.csv).toContain("Owner,Title,Identifier");
+    expect(body.editor).toBeUndefined();
 
     expect(await screen.findByText(/Added 1 book/)).toBeInTheDocument();
     expect(screen.getByText(/Line 3: No ISBN or LC/)).toBeInTheDocument();

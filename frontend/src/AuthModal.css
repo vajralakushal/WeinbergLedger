@@ -1,0 +1,47 @@
+/* Login / change-password modals: same overlay+card recipe as
+   BookModal/AddBookModal, but genuinely centered (not top-aligned) per
+   spec, since these are small two/three-field forms. */
+.modal-overlay.auth-overlay {
+  align-items: center;
+  padding: 20px;
+}
+
+.auth-card {
+  max-width: 380px;
+  width: 100%;
+}
+
+.auth-title {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  color: var(--parchment);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-switch {
+  margin: 20px 0 0;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  color: var(--parchment-dim);
+  text-align: center;
+}
+
+.auth-link {
+  background: none;
+  border: none;
+  color: var(--marigold);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.auth-link:hover { color: var(--crimson-bright); }

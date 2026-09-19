@@ -203,6 +203,39 @@
 .search-btn:hover { background: var(--crimson-bright); }
 .search-btn:active { background: var(--crimson); }
 
+/* ══ Search field isolation ══════════════════════════════════════════════ */
+.search-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.field-chip {
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 5px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--parchment-dim);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.field-chip:hover {
+  border-color: var(--marigold);
+  color: var(--marigold);
+}
+
+.field-chip.active {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: var(--parchment);
+}
+
 /* ══ Status messages ═════════════════════════════════════════════════════ */
 .status {
   margin: 0;

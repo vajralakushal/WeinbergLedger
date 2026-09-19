@@ -3,8 +3,14 @@ import "./App.css";
 import BookModal from "./BookModal";
 import AuditLog from "./AuditLog";
 import AddBookModal from "./AddBookModal";
+import LoginModal from "./LoginModal";
+import ChangePasswordModal from "./ChangePasswordModal";
+import SignupView from "./SignupView";
+import UsersDashboard from "./UsersDashboard";
+import UserMenu from "./UserMenu";
+import { authHeaders } from "./api";
 
-const EDITOR_NAME_KEY = "weinberg.editorName";
+const AUTH_TOKEN_KEY = "weinberg.authToken";
 
 const COLUMNS = [
   { key: "ID",            label: "ID" },
@@ -20,26 +26,47 @@ const COLUMNS = [
   { key: "IDENTIFIER",    label: "Identifier" },
 ];
 
+// Fields a search can be isolated to — mirrors Book::SEARCH_FIELDS on the backend.
+const SEARCH_FIELDS = COLUMNS.filter((c) => c.key !== "ID");
+
 export default function App() {
   const [query, setQuery]           = useState("");
+  const [searchFields, setSearchFields] = useState([]); // empty = search all fields
   const [rows, setRows]             = useState(null);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState(null);
   const [selectedBook, setSelectedBook] = useState(null);
-  const [view, setView]             = useState("search"); // "search" | "audit"
+  const [view, setView]             = useState("search"); // "search" | "audit" | "signup" | "admin"
   const [showAddBook, setShowAddBook] = useState(false);
 
-  // Audit trail: who is editing (persisted per browser) and their IP.
-  const [editorName, setEditorNameState] = useState(
-    () => localStorage.getItem(EDITOR_NAME_KEY) ?? ""
+  // Auth: bearer token (persisted) + the account it belongs to.
+  const [authToken, setAuthTokenState] = useState(
+    () => localStorage.getItem(AUTH_TOKEN_KEY) ?? ""
   );
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showLogin, setShowLogin]     = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+
   const [clientIp, setClientIp] = useState(null);
 
-  const setEditorName = useCallback((name) => {
-    const trimmed = name.trim();
-    setEditorNameState(trimmed);
-    if (trimmed) localStorage.setItem(EDITOR_NAME_KEY, trimmed);
-    else localStorage.removeItem(EDITOR_NAME_KEY);
+  const setAuthToken = useCallback((token) => {
+    setAuthTokenState(token);
+    if (token) localStorage.setItem(AUTH_TOKEN_KEY, token);
+    else localStorage.removeItem(AUTH_TOKEN_KEY);
+  }, []);
+
+  // Restore the session on load (and drop a stale/expired token quietly).
+  useEffect(() => {
+    if (!authToken) return;
+    fetch("/api/me", { headers: authHeaders(authToken) })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((user) => {
+        if (user) setCurrentUser(user);
+        else setAuthToken("");
+      })
+      .catch(() => {});
+    // Only ever needs to run for the token this component mounted with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -49,6 +76,20 @@ export default function App() {
       .catch(() => setClientIp(null));
   }, []);
 
+  const handleLogin = useCallback((token, user) => {
+    setAuthToken(token);
+    setCurrentUser(user);
+    setShowLogin(false);
+    if (user.must_change_password) setShowChangePassword(true);
+  }, [setAuthToken]);
+
+  const handleLogout = useCallback(() => {
+    fetch("/api/sessions", { method: "DELETE", headers: authHeaders(authToken) }).catch(() => {});
+    setAuthToken("");
+    setCurrentUser(null);
+    setView((v) => (v === "admin" ? "search" : v));
+  }, [authToken, setAuthToken]);
+
   const runSearch = useCallback(async () => {
     const q = query.trim();
     if (!q) return;
@@ -56,9 +97,9 @@ export default function App() {
     setError(null);
     setRows(null);
     try {
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(q)}`
-      );
+      const params = new URLSearchParams({ q });
+      searchFields.forEach((f) => params.append("fields[]", f));
+      const res = await fetch(`/api/search?${params.toString()}`);
       if (!res.ok) throw new Error(`Server error ${res.status}`);
       setRows(await res.json());
     } catch (e) {
@@ -66,7 +107,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [query]);
+  }, [query, searchFields]);
+
+  const toggleSearchField = useCallback((key) => {
+    setSearchFields((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }, []);
 
   const handleKey = (e) => {
     if (e.key === "Enter") runSearch();
@@ -114,18 +161,36 @@ export default function App() {
               View audit log
             </button>
           )}
-          <button
-            className="nav-btn nav-btn--accent"
-            onClick={() => setShowAddBook(true)}
-          >
-            Add book
-          </button>
+          {currentUser && (
+            <button
+              className="nav-btn nav-btn--accent"
+              onClick={() => setShowAddBook(true)}
+            >
+              Add book
+            </button>
+          )}
+          {currentUser ? (
+            <UserMenu
+              user={currentUser}
+              onLogout={handleLogout}
+              onChangePassword={() => setShowChangePassword(true)}
+              onOpenAdmin={() => setView("admin")}
+            />
+          ) : (
+            <button className="nav-btn nav-btn--accent" onClick={() => setShowLogin(true)}>
+              Log In
+            </button>
+          )}
         </nav>
       </header>
       <div className="masthead-rule" aria-hidden="true" />
 
       {view === "audit" ? (
         <AuditLog onBack={goHome} />
+      ) : view === "signup" ? (
+        <SignupView onBack={goHome} onRegistered={() => { goHome(); setShowLogin(true); }} />
+      ) : view === "admin" ? (
+        <UsersDashboard onBack={goHome} authToken={authToken} />
       ) : (
       <main className="console">
         <section className="hero">
@@ -154,6 +219,26 @@ export default function App() {
             <button className="search-btn" onClick={runSearch} aria-label="Search">
               →
             </button>
+          </div>
+
+          <div className="search-fields" role="group" aria-label="Search in">
+            <button
+              type="button"
+              className={`field-chip ${searchFields.length === 0 ? "active" : ""}`}
+              onClick={() => setSearchFields([])}
+            >
+              All fields
+            </button>
+            {SEARCH_FIELDS.map((f) => (
+              <button
+                type="button"
+                key={f.key}
+                className={`field-chip ${searchFields.includes(f.key) ? "active" : ""}`}
+                onClick={() => toggleSearchField(f.key)}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
         </section>
 
@@ -204,38 +289,40 @@ export default function App() {
           onClose={() => setSelectedBook(null)}
           onFieldUpdate={handleFieldUpdate}
           onRemove={handleRemove}
-          editorName={editorName}
-          onEditorNameChange={setEditorName}
+          currentUser={currentUser}
+          authToken={authToken}
         />
       )}
 
-      {showAddBook && (
+      {showAddBook && currentUser && (
         <AddBookModal
           onClose={() => setShowAddBook(false)}
           onAdded={handleAdded}
-          editorName={editorName}
-          onEditorNameChange={setEditorName}
+          authToken={authToken}
+        />
+      )}
+
+      {showLogin && (
+        <LoginModal
+          onClose={() => setShowLogin(false)}
+          onLogin={handleLogin}
+          onSignupClick={() => { setShowLogin(false); setView("signup"); }}
+        />
+      )}
+
+      {showChangePassword && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePassword(false)}
+          authToken={authToken}
         />
       )}
 
       <footer className="site-footer">
-        <span>
-          Editing as:{" "}
-          {editorName
-            ? <strong>{editorName}</strong>
-            : <em>not set — you'll be asked when you edit</em>}
-          {editorName && (
-            <button
-              className="footer-link"
-              onClick={() => {
-                const next = window.prompt("Your name (for the edit record):", editorName);
-                if (next !== null) setEditorName(next);
-              }}
-            >
-              change
-            </button>
-          )}
-        </span>
+        {currentUser ? (
+          <span>
+            Editing as: <strong>{currentUser.first_name} {currentUser.last_name}</strong>
+          </span>
+        ) : <span />}
         <span>Your IP: {clientIp ?? "…"}</span>
       </footer>
     </div>

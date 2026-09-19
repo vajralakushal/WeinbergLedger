@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import "./BookModal.css";
-import { ensureEditorName } from "./ensureName";
+import { authHeaders } from "./api";
 
 function formatTs(iso) {
   if (!iso) return "";
@@ -22,7 +22,7 @@ const FIELDS = [
   { key: "ID",            label: "ID" },
 ];
 
-export default function BookModal({ book, onClose, onFieldUpdate, onRemove, editorName, onEditorNameChange }) {
+export default function BookModal({ book, onClose, onFieldUpdate, onRemove, currentUser, authToken }) {
   const [thumbnailSrc, setThumbnailSrc] = useState(null); // null=loading, false=none, string=url
 
   // Change history (audit trail) for this book, newest first.
@@ -92,26 +92,23 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
 
-  // No name, no edit. Prompt for one and remember it for future edits.
+  // No account, no edit — editable fields aren't clickable when logged out.
   const startEditing = useCallback((fieldKey) => {
-    const name = ensureEditorName(editorName, onEditorNameChange);
-    if (!name) return; // cancelled or empty → do not open the editor
+    if (!currentUser) return;
     setEditingField(fieldKey);
     setEditErrors((prev) => ({ ...prev, [fieldKey]: null }));
-  }, [editorName, onEditorNameChange]);
+  }, [currentUser]);
 
-  // Remove this book from the library (requires a name; confirmed first).
+  // Remove this book from the library (requires login; confirmed first).
   const removeBook = useCallback(async () => {
-    const name = ensureEditorName(editorName, onEditorNameChange);
-    if (!name) return;
+    if (!currentUser) return;
     if (!window.confirm(`Remove "${book.TITLE}" from the library? This cannot be undone.`)) return;
 
     setRemoveError(null);
     try {
       const res = await fetch(`/api/book/${book.ID}`, {
         method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ editor: name }),
+        headers: authHeaders(authToken),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -122,7 +119,7 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
     } catch {
       setRemoveError("Could not reach server.");
     }
-  }, [editorName, onEditorNameChange, book.ID, book.TITLE, onRemove]);
+  }, [currentUser, authToken, book.ID, book.TITLE, onRemove]);
 
   const commitEdit = useCallback(async (fieldKey, endpoint, payloadKey) => {
     if (editingField !== fieldKey) return;
@@ -131,8 +128,8 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
     try {
       const res = await fetch(`/api/book/${book.ID}/${endpoint}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [payloadKey]: value, editor: editorName }),
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+        body: JSON.stringify({ [payloadKey]: value }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -144,7 +141,7 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
     } catch {
       setEditErrors((prev) => ({ ...prev, [fieldKey]: "Could not reach server." }));
     }
-  }, [editingField, editValues, book.ID, onFieldUpdate, editorName, loadHistory]);
+  }, [editingField, editValues, book.ID, onFieldUpdate, authToken, loadHistory]);
 
   const cancelEdit = useCallback((fieldKey) => {
     setEditValues((prev) => ({ ...prev, [fieldKey]: book[fieldKey] ?? "" }));
@@ -173,6 +170,7 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
             {FIELDS.map(({ key, label, editable, endpoint, payloadKey }) => {
               const displayValue = editable ? editValues[key] : (book[key] ?? "");
               const isActive     = editable && editingField === key;
+              const canEdit      = editable && !!currentUser;
               const fieldError   = editErrors[key];
 
               return (
@@ -193,7 +191,7 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
                         }}
                         onBlur={() => commitEdit(key, endpoint, payloadKey)}
                       />
-                    ) : editable ? (
+                    ) : canEdit ? (
                       <>
                         <span
                           className="editable-display"
@@ -235,12 +233,14 @@ export default function BookModal({ book, onClose, onFieldUpdate, onRemove, edit
           </div>
         )}
 
-        <div className="modal-actions">
-          <button className="remove-book-btn" onClick={removeBook}>
-            🗑 Remove book
-          </button>
-          {removeError && <span className="edit-error">{removeError}</span>}
-        </div>
+        {currentUser && (
+          <div className="modal-actions">
+            <button className="remove-book-btn" onClick={removeBook}>
+              🗑 Remove book
+            </button>
+            {removeError && <span className="edit-error">{removeError}</span>}
+          </div>
+        )}
       </div>
     </div>
   );

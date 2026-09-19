@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import "./AddBookModal.css";
-import { ensureEditorName } from "./ensureName";
+import { authHeaders } from "./api";
 
 // DB columns a user can set, with labels. Order = form order.
 const FIELDS = [
@@ -28,7 +28,7 @@ function fromLookup(book) {
   return out;
 }
 
-export default function AddBookModal({ onClose, onAdded, editorName, onEditorNameChange }) {
+export default function AddBookModal({ onClose, onAdded, authToken }) {
   const [mode, setMode] = useState("single"); // "single" | "bulk"
 
   // Single-book form
@@ -86,15 +86,13 @@ export default function AddBookModal({ onClose, onAdded, editorName, onEditorNam
       setError("Title and Owner are required.");
       return;
     }
-    const name = ensureEditorName(editorName, onEditorNameChange);
-    if (!name) return;
 
     setSaving(true);
     try {
       const res = await fetch("/api/book", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...values, editor: name }),
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+        body: JSON.stringify(values),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -111,7 +109,7 @@ export default function AddBookModal({ onClose, onAdded, editorName, onEditorNam
     } finally {
       setSaving(false);
     }
-  }, [values, editorName, onEditorNameChange, onAdded]);
+  }, [values, authToken, onAdded]);
 
   // ── Bulk import ──
   const onFile = (e) => {
@@ -129,15 +127,13 @@ export default function AddBookModal({ onClose, onAdded, editorName, onEditorNam
       setBulkError("Paste or upload some CSV first.");
       return;
     }
-    const name = ensureEditorName(editorName, onEditorNameChange);
-    if (!name) return;
 
     setImporting(true);
     try {
       const res = await fetch("/api/books/bulk", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ csv: csvText, editor: name }),
+        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+        body: JSON.stringify({ csv: csvText }),
       });
       const data = await res.json();
       if (!data.ok) {
@@ -151,7 +147,7 @@ export default function AddBookModal({ onClose, onAdded, editorName, onEditorNam
     } finally {
       setImporting(false);
     }
-  }, [csvText, editorName, onEditorNameChange, onAdded]);
+  }, [csvText, authToken, onAdded]);
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>

@@ -84,4 +84,55 @@ describe("App", () => {
     await waitFor(() => expect(screen.queryByText("QM")).toBeNull());
     expect(screen.getByPlaceholderText("Search params")).toHaveValue("");
   });
+
+  it("isolating the search to specific fields adds fields[] params", async () => {
+    const fetchMock = mockFetch([
+      ["whoami", { body: { ip: "1.1.1.1" } }],
+      ["search", { body: [] }],
+    ]);
+    global.fetch = fetchMock;
+    render(<App />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Creator" }));
+    await userEvent.type(screen.getByPlaceholderText("Search params"), "griffiths{Enter}");
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find((c) => String(c[0]).includes("/api/search"));
+      expect(call).toBeTruthy();
+      expect(String(call[0])).toContain("fields%5B%5D=CREATOR");
+    });
+  });
+
+  it("shows a Log In button when logged out, with no Add book button", async () => {
+    global.fetch = mockFetch([["whoami", { body: { ip: "1.1.1.1" } }]]);
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Log In" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add book" })).toBeNull();
+  });
+
+  it("logging in reveals the username, Add book, and the editing-as footer", async () => {
+    global.fetch = mockFetch([
+      ["whoami", { body: { ip: "1.1.1.1" } }],
+      ["/api/sessions", {
+        body: {
+          ok: true, token: "tok-abc",
+          user: { user_id: 7, username: "ada", first_name: "Ada", last_name: "Lovelace", admin_status: false },
+        },
+      }],
+    ]);
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Log In" }));
+    await userEvent.type(screen.getByLabelText(/Username/), "ada");
+    await userEvent.type(screen.getByLabelText(/Password/), "s3cret123");
+    // Two "Log In" buttons are on screen now: the masthead one (still logged
+    // out) and the modal's submit button, appended after it in the DOM.
+    const loginButtons = screen.getAllByRole("button", { name: "Log In" });
+    await userEvent.click(loginButtons[loginButtons.length - 1]);
+
+    expect(await screen.findByRole("button", { name: /ada/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add book" })).toBeInTheDocument();
+    expect(screen.getByText(/Editing as:/)).toBeInTheDocument();
+    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+  });
 });
