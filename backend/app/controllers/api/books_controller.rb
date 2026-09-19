@@ -1,5 +1,7 @@
 module Api
   class BooksController < ApplicationController
+    before_action :require_login!, only: [ :update_borrower, :update_location, :create, :bulk_create, :destroy ]
+
     def search
       q = params[:q].to_s.strip
       return render json: [] if q.empty?
@@ -30,25 +32,16 @@ module Api
     end
 
     def update_borrower
-      name   = params[:name].to_s.strip
-      editor = params[:editor].to_s.strip
-      return unless require_param!(editor, "Your name is required to make an edit.")
-
-      apply_edit(params[:id].to_i, "BORROWER", name.empty? ? nil : name, editor)
+      name = params[:name].to_s.strip
+      apply_edit(params[:id].to_i, "BORROWER", name.empty? ? nil : name, current_user.full_name)
     end
 
     def update_location
       location = params[:location].to_s.strip
-      editor   = params[:editor].to_s.strip
-      return unless require_param!(editor, "Your name is required to make an edit.")
-
-      apply_edit(params[:id].to_i, "LOCATION", location.empty? ? nil : location, editor)
+      apply_edit(params[:id].to_i, "LOCATION", location.empty? ? nil : location, current_user.full_name)
     end
 
     def create
-      editor = params[:editor].to_s.strip
-      return unless require_param!(editor, "Your name is required to add a book.")
-
       values = Book::COLUMNS.index_with { |col| params[col].to_s.strip.presence }
 
       if values["TITLE"].nil? || values["OWNER"].nil?
@@ -59,15 +52,12 @@ module Api
       ActiveRecord::Base.transaction do
         book = Book.create!(values)
         AuditLog.record!(book_id: book.ID, field: "ADDED", old_value: nil,
-                          new_value: values["TITLE"], editor: editor, ip: request.remote_ip)
+                          new_value: values["TITLE"], editor: current_user.full_name, ip: request.remote_ip)
       end
       render json: { ok: true, book: values.merge("ID" => book.ID) }, status: :created
     end
 
     def bulk_create
-      editor = params[:editor].to_s.strip
-      return unless require_param!(editor, "Your name is required to add books.")
-
       begin
         rows = BulkCsvImporter.parse(params[:csv])
       rescue ArgumentError => e
@@ -105,7 +95,7 @@ module Api
           v = r[:values]
           book = Book.create!(v)
           AuditLog.record!(book_id: book.ID, field: "ADDED", old_value: nil,
-                            new_value: v["TITLE"], editor: editor, ip: request.remote_ip)
+                            new_value: v["TITLE"], editor: current_user.full_name, ip: request.remote_ip)
           added << { line: r[:line], id: book.ID, title: v["TITLE"] }
         end
       end
@@ -114,9 +104,6 @@ module Api
     end
 
     def destroy
-      editor = params[:editor].to_s.strip
-      return unless require_param!(editor, "Your name is required to remove a book.")
-
       book_id = params[:id].to_i
       ActiveRecord::Base.transaction do
         book = Book.find_by(ID: book_id)
@@ -126,7 +113,7 @@ module Api
           title = book.TITLE
           book.destroy!
           AuditLog.record!(book_id: book_id, field: "REMOVED", old_value: title,
-                            new_value: nil, editor: editor, ip: request.remote_ip)
+                            new_value: nil, editor: current_user.full_name, ip: request.remote_ip)
           render json: { ok: true }
         end
       end

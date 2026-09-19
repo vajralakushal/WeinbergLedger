@@ -31,5 +31,23 @@ module ActiveSupport
       Book.create!(ID: 2, OWNER: "Sanjay Mathai", TITLE: "Topology",
                     CREATOR: "Munkres", IDENTIFIER: "")
     end
+
+    # Builds an approved user ready to log in, matching the shape the
+    # RegistrationsController produces once approved. Give a unique
+    # username per call (tests may create several).
+    def create_user!(overrides = {})
+      seq = (@user_seq ||= 0) + 1
+      @user_seq = seq
+      User.create!({
+        first_name: "Test", last_name: "User#{seq}", username: "testuser#{seq}",
+        password: "password123", approval_status: User::APPROVED
+      }.merge(overrides))
+    end
+
+    # A real Session row (not a stubbed token), so controller-level
+    # Session.authenticate lookups behave exactly as in production.
+    def auth_headers_for(user)
+      { "Authorization" => "Bearer #{user.sessions.create!.raw_token}" }
+    end
   end
 end

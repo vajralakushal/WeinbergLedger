@@ -2,10 +2,15 @@ require "test_helper"
 
 # Ported from the old Sinatra suite (test/app_test.rb) — same flat test_*
 # style and direct-DB assertions, now against the Rails routes/controllers.
+# Book-mutating routes require login (see Api::BooksController); the
+# free-text `editor` param the old app accepted is gone — EDITOR is now
+# derived server-side from the logged-in user.
 class ApiTest < ActionDispatch::IntegrationTest
-  JSON_HEADERS = { "CONTENT_TYPE" => "application/json" }.freeze
-
-  setup { seed_library! }
+  setup do
+    seed_library!
+    @user  = create_user!
+    @auth  = auth_headers_for(@user)
+  end
 
   def audit_rows
     AuditLog.order(:ID)
@@ -15,16 +20,20 @@ class ApiTest < ActionDispatch::IntegrationTest
     Book.find_by(ID: id)
   end
 
-  def patch_json(path, payload)
-    patch path, params: payload.to_json, headers: JSON_HEADERS
+  # auth_headers is a trailing positional (not keyword) argument on purpose —
+  # Ruby 3 won't let a call site pass an implicit "key: value, ..." payload
+  # hash once the method also declares keyword params, so plain call sites
+  # like `patch_json path, name: "Bob"` would break if auth were `auth: ...`.
+  def patch_json(path, payload, auth_headers = @auth)
+    patch path, params: payload.to_json, headers: { "CONTENT_TYPE" => "application/json" }.merge(auth_headers)
   end
 
-  def post_json(path, payload)
-    post path, params: payload.to_json, headers: JSON_HEADERS
+  def post_json(path, payload, auth_headers = @auth)
+    post path, params: payload.to_json, headers: { "CONTENT_TYPE" => "application/json" }.merge(auth_headers)
   end
 
-  def delete_json(path, payload)
-    delete path, params: payload.to_json, headers: JSON_HEADERS
+  def delete_json(path, payload, auth_headers = @auth)
+    delete path, params: payload.to_json, headers: { "CONTENT_TYPE" => "application/json" }.merge(auth_headers)
   end
 
   # ── Search (guards the search route) ──────────────────────────────────────
@@ -66,18 +75,18 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert response.parsed_body.key?("ip")
   end
 
-  # ── Name required for edits ───────────────────────────────────────────────
+  # ── Writes require login ──────────────────────────────────────────────────
 
-  test "borrower edit without name is rejected" do
-    patch_json "/api/book/1/borrower", name: "Bob"
-    assert_response :bad_request
+  test "borrower edit without login is rejected" do
+    patch_json "/api/book/1/borrower", { name: "Bob" }, {}
+    assert_response :unauthorized
     assert_equal 0, audit_rows.length
     assert_nil book(1)["BORROWER"]
   end
 
-  test "location edit without name is rejected" do
-    patch_json "/api/book/1/location", location: "Shelf A"
-    assert_response :bad_request
+  test "location edit without login is rejected" do
+    patch_json "/api/book/1/location", { location: "Shelf A" }, {}
+    assert_response :unauthorized
     assert_equal 0, audit_rows.length
     assert_nil book(1)["LOCATION"]
   end
@@ -85,7 +94,7 @@ class ApiTest < ActionDispatch::IntegrationTest
   # ── Successful edits write audit rows ─────────────────────────────────────
 
   test "borrower edit updates and audits" do
-    patch_json "/api/book/1/borrower", name: "Bob", editor: "Kushal"
+    patch_json "/api/book/1/borrower", name: "Bob"
     assert_response :success
     assert_equal "Bob", book(1)["BORROWER"]
 
@@ -94,22 +103,23 @@ class ApiTest < ActionDispatch::IntegrationTest
     a = rows.first
     assert_equal "BORROWER", a["FIELD"]
     assert_nil   a["OLD_VALUE"]
-    assert_equal "Bob",      a["NEW_VALUE"]
-    assert_equal "Kushal",   a["EDITOR"]
+    assert_equal "Bob",          a["NEW_VALUE"]
+    assert_equal @user.full_name, a["EDITOR"]
     refute_nil   a["IP"]
     refute_nil   a["TIMESTAMP"]
   end
 
   test "location edit updates and audits" do
-    patch_json "/api/book/2/location", location: "Shelf C1", editor: "Yasin"
+    patch_json "/api/book/2/location", location: "Shelf C1"
     assert_response :success
     assert_equal "Shelf C1", book(2)["LOCATION"]
     assert_equal "LOCATION", audit_rows.first["FIELD"]
+    assert_equal @user.full_name, audit_rows.first["EDITOR"]
   end
 
   test "clearing borrower records old value" do
-    patch_json "/api/book/1/borrower", name: "Bob", editor: "K" # check out
-    patch_json "/api/book/1/borrower", name: "",    editor: "K" # check in
+    patch_json "/api/book/1/borrower", name: "Bob" # check out
+    patch_json "/api/book/1/borrower", name: ""    # check in
     assert_response :success
     assert_nil book(1)["BORROWER"]
 
@@ -119,15 +129,15 @@ class ApiTest < ActionDispatch::IntegrationTest
   end
 
   test "edit nonexistent book returns 404" do
-    patch_json "/api/book/9999/borrower", name: "X", editor: "K"
+    patch_json "/api/book/9999/borrower", name: "X"
     assert_response :not_found
   end
 
   # ── Per-book history ──────────────────────────────────────────────────────
 
   test "history newest first" do
-    patch_json "/api/book/1/borrower", name: "Bob", editor: "K"
-    patch_json "/api/book/1/location", location: "S1", editor: "K"
+    patch_json "/api/book/1/borrower", name: "Bob"
+    patch_json "/api/book/1/location", location: "S1"
 
     get "/api/book/1/history"
     assert_response :success
@@ -140,8 +150,8 @@ class ApiTest < ActionDispatch::IntegrationTest
   # ── Global audit log ──────────────────────────────────────────────────────
 
   test "audit returns all with titles newest first" do
-    patch_json "/api/book/1/borrower", name: "Bob", editor: "K"
-    patch_json "/api/book/2/location", location: "S9", editor: "Y"
+    patch_json "/api/book/1/borrower", name: "Bob"
+    patch_json "/api/book/2/location", location: "S9"
 
     get "/api/audit"
     assert_response :success
@@ -154,25 +164,25 @@ class ApiTest < ActionDispatch::IntegrationTest
 
   # ── Add a book ────────────────────────────────────────────────────────────
 
-  test "add book without name is rejected" do
+  test "add book without login is rejected" do
     before = Book.count
-    post_json "/api/book", TITLE: "New Book", OWNER: "Alex Lu"
-    assert_response :bad_request
+    post_json "/api/book", { TITLE: "New Book", OWNER: "Alex Lu" }, {}
+    assert_response :unauthorized
     assert_equal before, Book.count # nothing inserted
     assert_equal 0, audit_rows.length
   end
 
   test "add book requires title and owner" do
-    post_json "/api/book", TITLE: "No Owner", editor: "K"
+    post_json "/api/book", TITLE: "No Owner"
     assert_response :bad_request
-    post_json "/api/book", OWNER: "No Title", editor: "K"
+    post_json "/api/book", OWNER: "No Title"
     assert_response :bad_request
     assert_equal 0, audit_rows.length
   end
 
   test "add book inserts and audits" do
     post_json "/api/book", TITLE: "Real Analysis", OWNER: "Alex Lu", CREATOR: "Rudin",
-                            IDENTIFIER: "ISBN : 007054234X", editor: "Kushal"
+                            IDENTIFIER: "ISBN : 007054234X"
     assert_response :created
 
     body = response.parsed_body
@@ -190,12 +200,12 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_equal "ADDED",         a["FIELD"]
     assert_nil   a["OLD_VALUE"]
     assert_equal "Real Analysis", a["NEW_VALUE"]
-    assert_equal "Kushal",        a["EDITOR"]
+    assert_equal @user.full_name, a["EDITOR"]
     refute_nil   a["IP"]
   end
 
   test "add book blank fields become null" do
-    post_json "/api/book", TITLE: "T", OWNER: "O", SERIES: "  ", editor: "K"
+    post_json "/api/book", TITLE: "T", OWNER: "O", SERIES: "  "
     assert_response :created
     new_id = response.parsed_body["book"]["ID"]
     assert_nil book(new_id)["SERIES"]
@@ -203,20 +213,20 @@ class ApiTest < ActionDispatch::IntegrationTest
 
   # ── Remove a book ─────────────────────────────────────────────────────────
 
-  test "remove book without name is rejected" do
-    delete_json "/api/book/1", {}
-    assert_response :bad_request
+  test "remove book without login is rejected" do
+    delete_json "/api/book/1", {}, {}
+    assert_response :unauthorized
     refute_nil book(1) # still present
     assert_equal 0, audit_rows.length
   end
 
   test "remove nonexistent book returns 404" do
-    delete_json "/api/book/9999", editor: "K"
+    delete_json "/api/book/9999", {}
     assert_response :not_found
   end
 
   test "remove book deletes and audits" do
-    delete_json "/api/book/1", editor: "Yasin"
+    delete_json "/api/book/1", {}
     assert_response :success
     assert_nil book(1) # gone
 
@@ -225,12 +235,12 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_equal "REMOVED",           a["FIELD"]
     assert_equal "Quantum Mechanics", a["OLD_VALUE"] # title preserved in the log
     assert_nil   a["NEW_VALUE"]
-    assert_equal "Yasin",             a["EDITOR"]
+    assert_equal @user.full_name,     a["EDITOR"]
     refute_nil   a["IP"]
   end
 
   test "removed book still appears in audit log" do
-    delete_json "/api/book/1", editor: "Yasin"
+    delete_json "/api/book/1", {}
     get "/api/audit"
     rows = response.parsed_body
     entry = rows.find { |r| r["FIELD"] == "REMOVED" }
@@ -262,13 +272,13 @@ class ApiTest < ActionDispatch::IntegrationTest
 
   # ── Bulk import endpoint ──────────────────────────────────────────────────
 
-  test "bulk requires name" do
-    post_json "/api/books/bulk", csv: "Owner,Title,Identifier\nA,B,ISBN : 1\n"
-    assert_response :bad_request
+  test "bulk requires login" do
+    post_json "/api/books/bulk", { csv: "Owner,Title,Identifier\nA,B,ISBN : 1\n" }, {}
+    assert_response :unauthorized
   end
 
   test "bulk missing headers returns 400" do
-    post_json "/api/books/bulk", editor: "K", csv: "Owner,Title\nA,B\n"
+    post_json "/api/books/bulk", csv: "Owner,Title\nA,B\n"
     assert_response :bad_request
     assert_match(/Identifier/i, response.parsed_body["error"])
   end
@@ -279,7 +289,7 @@ class ApiTest < ActionDispatch::IntegrationTest
       Alex Lu,Algebra,Lang,ISBN : 038795385X
       Sanjay,Analysis,Rudin,LC : 76087199
     CSV
-    post_json "/api/books/bulk", editor: "Kushal", csv: csv
+    post_json "/api/books/bulk", csv: csv
     assert_response :success
     body = response.parsed_body
     assert_equal 2, body["added"].length
@@ -289,7 +299,7 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_equal %w[Algebra Analysis], titles.sort
     added_audits = audit_rows.select { |a| a["FIELD"] == "ADDED" }
     assert_equal 2, added_audits.length
-    assert(added_audits.all? { |a| a["EDITOR"] == "Kushal" && !a["IP"].nil? })
+    assert(added_audits.all? { |a| a["EDITOR"] == @user.full_name && !a["IP"].nil? })
   end
 
   test "bulk skips rows missing required fields" do
@@ -298,7 +308,7 @@ class ApiTest < ActionDispatch::IntegrationTest
       ,No Owner,ISBN : 1
       Alex,Good Book,ISBN : 2
     CSV
-    post_json "/api/books/bulk", editor: "K", csv: csv
+    post_json "/api/books/bulk", csv: csv
     body = response.parsed_body
     assert_equal 1, body["added"].length
     assert_equal 1, body["skipped"].length
@@ -311,7 +321,7 @@ class ApiTest < ActionDispatch::IntegrationTest
       Owner,Title,Identifier
       Alex,No Identifier Book,OCLC : (OCoLC)123
     CSV
-    post_json "/api/books/bulk", editor: "K", csv: csv
+    post_json "/api/books/bulk", csv: csv
     body = response.parsed_body
     assert_empty body["added"]
     assert_equal 1, body["skipped"].length
