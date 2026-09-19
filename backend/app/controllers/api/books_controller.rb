@@ -65,6 +65,11 @@ module Api
       end
       return render json: { ok: false, error: "No data rows found in the CSV." }, status: :bad_request if rows.empty?
 
+      # Old books often have no ISBN/LC at all. Rather than silently drop
+      # them, the frontend asks the user to confirm before adding them
+      # without an identifier, then resubmits just those rows with this set.
+      force_no_identifier = ActiveModel::Type::Boolean.new.cast(params[:force_no_identifier])
+
       to_insert = []
       skipped   = []
       rows.each do |r|
@@ -81,8 +86,8 @@ module Api
           isbn = OpenLibraryService.find_isbn(v["TITLE"], v["CREATOR"])
           if isbn
             v["IDENTIFIER"] = [ v["IDENTIFIER"], "ISBN : #{isbn}" ].compact.reject(&:empty?).join("; ")
-          else
-            skipped << { line: r[:line], reason: "No ISBN or LC (and none found online)" }
+          elsif !force_no_identifier
+            skipped << { line: r[:line], title: v["TITLE"], reason: "No ISBN or LC (and none found online)", missing_identifier: true }
             next
           end
         end

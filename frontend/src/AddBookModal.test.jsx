@@ -113,4 +113,75 @@ describe("AddBookModal bulk CSV", () => {
     expect(await screen.findByText(/Added 1 book/)).toBeInTheDocument();
     expect(screen.getByText(/Line 3: No ISBN or LC/)).toBeInTheDocument();
   });
+
+  it("offers to add identifier-less rows anyway, and resubmits just those on confirm", async () => {
+    const spy = vi.fn();
+    global.fetch = vi.fn((url, opts) => {
+      const body = JSON.parse(opts.body);
+      spy(body);
+      if (!body.force_no_identifier) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            ok: true,
+            added: [],
+            skipped: [{ line: 2, title: "Old Book", reason: "No ISBN or LC (and none found online)", missing_identifier: true }],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, added: [{ line: 2, id: 9, title: "Old Book" }], skipped: [] }),
+      });
+    });
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<AddBookModal onClose={noop} onAdded={noop} authToken="tok" />);
+    await userEvent.click(screen.getByRole("button", { name: /Bulk CSV/ }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Owner,Title\nAlex,Old Book" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Import CSV/ }));
+
+    const retryBtn = await screen.findByRole("button", { name: /Add books without an identifier/ });
+    await userEvent.click(retryBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+    const secondCallBody = spy.mock.calls[1][0];
+    expect(secondCallBody.force_no_identifier).toBe(true);
+    expect(secondCallBody.csv).toContain("Old Book");
+
+    expect(await screen.findByText(/Added 1 book/)).toBeInTheDocument();
+    expect(screen.queryByText(/No ISBN or LC/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /Add books without an identifier/ })).toBeNull();
+  });
+
+  it("does not resubmit if the confirmation is declined", async () => {
+    const spy = vi.fn();
+    global.fetch = vi.fn((url, opts) => {
+      spy(opts);
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          ok: true,
+          added: [],
+          skipped: [{ line: 2, title: "Old Book", reason: "No ISBN or LC (and none found online)", missing_identifier: true }],
+        }),
+      });
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<AddBookModal onClose={noop} onAdded={noop} authToken="tok" />);
+    await userEvent.click(screen.getByRole("button", { name: /Bulk CSV/ }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Owner,Title\nAlex,Old Book" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /Import CSV/ }));
+
+    const retryBtn = await screen.findByRole("button", { name: /Add books without an identifier/ });
+    await userEvent.click(retryBtn);
+
+    expect(spy).toHaveBeenCalledTimes(1); // only the original import call
+  });
 });

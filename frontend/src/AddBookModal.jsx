@@ -120,6 +120,14 @@ export default function AddBookModal({ onClose, onAdded, authToken }) {
     reader.readAsText(file);
   };
 
+  const postBulk = useCallback((csv, forceNoIdentifier) => {
+    return fetch("/api/books/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
+      body: JSON.stringify({ csv, force_no_identifier: forceNoIdentifier }),
+    }).then((res) => res.json());
+  }, [authToken]);
+
   const importBulk = useCallback(async () => {
     setBulkError(null);
     setBulkReport(null);
@@ -130,12 +138,7 @@ export default function AddBookModal({ onClose, onAdded, authToken }) {
 
     setImporting(true);
     try {
-      const res = await fetch("/api/books/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders(authToken) },
-        body: JSON.stringify({ csv: csvText }),
-      });
-      const data = await res.json();
+      const data = await postBulk(csvText, false);
       if (!data.ok) {
         setBulkError(data.error ?? "Import failed.");
         return;
@@ -147,7 +150,41 @@ export default function AddBookModal({ onClose, onAdded, authToken }) {
     } finally {
       setImporting(false);
     }
-  }, [csvText, authToken, onAdded]);
+  }, [csvText, postBulk, onAdded]);
+
+  // Old books often have no ISBN/LC on file at all. Rather than silently
+  // drop them, ask once and, if confirmed, resubmit just those rows
+  // (reconstructed from their original CSV lines) with force_no_identifier.
+  const addWithoutIdentifier = useCallback(async () => {
+    const toRetry = bulkReport?.skipped.filter((s) => s.missing_identifier) ?? [];
+    if (toRetry.length === 0) return;
+
+    const confirmed = window.confirm(
+      "These books don't have an ISBN or other identifier. Still want to add them?"
+    );
+    if (!confirmed) return;
+
+    const lines = csvText.split(/\r?\n/);
+    const subsetCsv = [ lines[0], ...toRetry.map((s) => lines[s.line - 1]) ].join("\n");
+
+    setImporting(true);
+    try {
+      const data = await postBulk(subsetCsv, true);
+      if (!data.ok) {
+        setBulkError(data.error ?? "Import failed.");
+        return;
+      }
+      data.added?.forEach((b) => onAdded?.({ ...EMPTY, ID: b.id, TITLE: b.title }));
+      setBulkReport((prev) => ({
+        added: [ ...prev.added, ...data.added ],
+        skipped: prev.skipped.filter((s) => !s.missing_identifier),
+      }));
+    } catch {
+      setBulkError("Could not reach server.");
+    } finally {
+      setImporting(false);
+    }
+  }, [bulkReport, csvText, postBulk, onAdded]);
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -226,9 +263,9 @@ export default function AddBookModal({ onClose, onAdded, authToken }) {
           <>
             <p className="bulk-help">
               Paste CSV with the columns <code>Owner, Title, … Identifier</code> (same
-              layout as the library spreadsheet). Each row needs a Title, an Owner, and
-              an ISBN or LC in the Identifier field — a missing ISBN is looked up online
-              when possible, otherwise the row is skipped.
+              layout as the library spreadsheet). Each row needs a Title and an Owner.
+              If a row has no ISBN or LC, one is looked up online when possible; if none
+              is found, you'll be asked to confirm before it's added without one.
             </p>
 
             <input type="file" accept=".csv,text/csv" onChange={onFile} className="bulk-file" />
@@ -255,6 +292,16 @@ export default function AddBookModal({ onClose, onAdded, authToken }) {
                         <li key={i}>Line {s.line}: {s.reason}</li>
                       ))}
                     </ul>
+                    {bulkReport.skipped.some((s) => s.missing_identifier) && (
+                      <button
+                        type="button"
+                        className="add-book-cancel"
+                        onClick={addWithoutIdentifier}
+                        disabled={importing}
+                      >
+                        Add books without an identifier
+                      </button>
+                    )}
                   </>
                 )}
               </div>

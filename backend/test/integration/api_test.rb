@@ -316,7 +316,7 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_match(/Owner/i, body["skipped"][0]["reason"])
   end
 
-  test "bulk skips rows without isbn or lc when offline" do
+  test "bulk skips rows without isbn or lc when offline, flagging them as retryable" do
     csv = <<~CSV
       Owner,Title,Identifier
       Alex,No Identifier Book,OCLC : (OCoLC)123
@@ -326,6 +326,34 @@ class ApiTest < ActionDispatch::IntegrationTest
     assert_empty body["added"]
     assert_equal 1, body["skipped"].length
     assert_match(/ISBN or LC/i, body["skipped"][0]["reason"])
+    assert body["skipped"][0]["missing_identifier"]
+  end
+
+  test "bulk adds rows without isbn or lc when force_no_identifier is set" do
+    csv = <<~CSV
+      Owner,Title,Identifier
+      Alex,No Identifier Book,OCLC : (OCoLC)123
+    CSV
+    post_json "/api/books/bulk", csv: csv, force_no_identifier: true
+    body = response.parsed_body
+    assert_equal 1, body["added"].length
+    assert_empty body["skipped"]
+
+    row = Book.find_by(TITLE: "No Identifier Book")
+    refute_nil row
+    assert_equal "OCLC : (OCoLC)123", row["IDENTIFIER"]
+  end
+
+  test "bulk with force_no_identifier still skips rows missing required fields" do
+    csv = <<~CSV
+      Owner,Title,Identifier
+      ,No Owner,
+    CSV
+    post_json "/api/books/bulk", csv: csv, force_no_identifier: true
+    body = response.parsed_body
+    assert_empty body["added"]
+    assert_equal 1, body["skipped"].length
+    assert_match(/Owner/i, body["skipped"][0]["reason"])
   end
 
   # ── Thumbnail (no network paths only) ─────────────────────────────────────
