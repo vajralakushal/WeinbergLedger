@@ -48,6 +48,7 @@ cd WeinbergLedger
 cd backend
 bundle install
 bin/rails db:migrate
+bin/rails db:seed
 cd ..
 
 cd frontend
@@ -57,6 +58,15 @@ cd ..
 
 The migration only adds the tables needed for accounts. It doesn't touch
 the existing book data in `library.db`.
+
+`db:seed` creates a starting admin account if one doesn't already exist,
+so there's always someone who can approve new signups. The default
+username is `admin` and the default password is `changeme123`; you'll be
+asked to set a new password the first time you log in. To choose your
+own instead of the default, set `SEED_ADMIN_USERNAME` and
+`SEED_ADMIN_PASSWORD` before running `db:seed`. It's safe to run
+`db:seed` again later. It won't touch an admin account that already
+exists.
 
 ## Run it
 
@@ -75,11 +85,12 @@ npm run dev
 This prints a URL, usually http://localhost:5173. Open that in your
 browser and use the app there. It talks to the backend automatically.
 
-There's no signup form for the first admin account, since someone has to
-be the first one. Sign up through the app normally, then run this from
-the `backend` folder to promote that account:
+Log in with the admin account `db:seed` created (see Install above). If
+you want to make a second admin later, have that person sign up through
+the app, then run this from the `backend` folder to promote their
+account:
 ```bash
-bin/rails runner 'User.find_by(username: "yourusername").update!(admin_status: true, approval_status: "APPROVED")'
+bin/rails runner 'User.find_by(username: "theirusername").update!(admin_status: true, approval_status: "APPROVED")'
 ```
 
 ## Tests
