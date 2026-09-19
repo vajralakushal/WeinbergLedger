@@ -9,8 +9,8 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   server: {
     proxy: {
-      // Route API calls to the Sinatra backend (app.rb, port 4567)
-      '/api': 'http://localhost:4567',
+      // Route API calls to the Rails backend (backend/, port 3000)
+      '/api': 'http://localhost:3000',
     },
   },
   test: {
