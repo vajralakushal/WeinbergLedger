@@ -19,10 +19,13 @@ Rails.application.configure do
   # config.asset_host = "http://assets.example.com"
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
-  config.assume_ssl = true
-
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  config.force_ssl = true
+  # Rails defaults both of these to true, but this app is also deployed LAN-only
+  # with no TLS in front of it (see README "Deploy A: Local Mac mini") — force_ssl
+  # would otherwise redirect-loop plain http:// LAN traffic. Set FORCE_SSL=0 for
+  # that case; leave it unset (true) for anything reachable over the internet.
+  force_ssl = ActiveModel::Type::Boolean.new.cast(ENV.fetch("FORCE_SSL", "true"))
+  config.assume_ssl = force_ssl
+  config.force_ssl  = force_ssl
 
   # Skip http-to-https redirect for the default health check endpoint.
   # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }

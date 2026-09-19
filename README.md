@@ -3,9 +3,11 @@
 A small, self-hosted catalog for a **shared physical library** — it tracks which
 book each member owns, who has currently borrowed it, and where it lives on the
 shelves, with a full **audit trail** (who changed what, from where, and when).
+Accounts are required to edit anything; anyone can still browse the catalog and
+the audit trail without one.
 
-- **Backend:** Ruby + [Sinatra](https://sinatrarb.com/), data in a single
-  **SQLite** file (`library.db`). JSON API on port `4567`.
+- **Backend:** Ruby on Rails (API-only), data in a single **SQLite** file
+  (`library.db`). JSON API on port `3000`.
 - **Frontend:** React + [Vite](https://vite.dev/) single-page app. Self-hosted
   fonts and dithered art — **no runtime network dependency** for the UI.
 - **External calls:** only OpenLibrary, and only when someone uses the optional
@@ -17,38 +19,40 @@ shelves, with a full **audit trail** (who changed what, from where, and when).
 
 1. [Architecture](#architecture)
 2. [Repository layout](#repository-layout)
-3. [Prerequisites](#prerequisites)
-4. [Setup](#setup)
-5. [Running in development (locally)](#running-in-development)
-6. [Tests](#tests)
-7. [Database & data](#database--data)
-8. [Building for production](#building-for-production)
-9. [Deploying](#deploying)
-   - [The one deployment invariant](#the-one-deployment-invariant-same-origin)
-   - [Serving the built app (3 options)](#serving-the-built-app)
-   - [Local Mac mini](#deploy-a-local-mac-mini-primary-target)
-   - [Linux server](#deploy-b-linux-server-systemd--caddy)
-   - [Windows](#deploy-c-windows)
-   - [Cloudflare (remote access)](#deploy-d-cloudflare-tunnel-remote-access)
-10. [Configuration reference](#configuration-reference)
-11. [Maintenance & backups](#maintenance--backups)
-12. [Troubleshooting](#troubleshooting)
+3. [Accounts & permissions](#accounts--permissions)
+4. [Prerequisites](#prerequisites)
+5. [Setup](#setup)
+6. [Running in development (locally)](#running-in-development)
+7. [Tests](#tests)
+8. [Database & data](#database--data)
+9. [Building for production](#building-for-production)
+10. [Deploying](#deploying)
+    - [The one deployment invariant](#the-one-deployment-invariant-same-origin)
+    - [Secrets: the Rails master key](#secrets-the-rails-master-key)
+    - [Serving the built app (3 options)](#serving-the-built-app)
+    - [Local Mac mini](#deploy-a-local-mac-mini-primary-target)
+    - [Linux server](#deploy-b-linux-server-systemd--caddy)
+    - [Windows](#deploy-c-windows)
+    - [Cloudflare (remote access)](#deploy-d-cloudflare-tunnel-remote-access)
+11. [Configuration reference](#configuration-reference)
+12. [Maintenance & backups](#maintenance--backups)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
 ## Architecture
 
 ```
-                         ┌──────────────────────────┐
-   browser  ── /api/* ──▶│  Sinatra (app.rb)  :4567 │──▶ library.db (SQLite)
-      │                  │  JSON API + audit log    │──▶ img/ (cover cache)
-      │                  └──────────────────────────┘
+                         ┌──────────────────────────────┐
+   browser  ── /api/* ──▶│  Rails API (backend/)  :3000  │──▶ library.db (SQLite)
+      │                  │  JSON API + auth + audit log  │──▶ img/ (cover cache)
+      │                  └──────────────────────────────┘
       │                            ▲
       └── / , /assets, /fonts ─────┘   (static frontend, built to frontend/dist)
 ```
 
 - In **development**, the Vite dev server (`:5173`) serves the UI and **proxies**
-  `/api/*` to Sinatra (`:4567`). See `frontend/vite.config.js`.
+  `/api/*` to Rails (`:3000`). See `frontend/vite.config.js`.
 - In **production**, there is no dev server. You build the UI to
   `frontend/dist/` and serve those static files **on the same origin** as the
   API (see [the deployment invariant](#the-one-deployment-invariant-same-origin)).
@@ -62,22 +66,62 @@ no idea what host/port it is on — which is exactly what makes it portable.
 
 ```
 WeinbergLedger/
-├── app.rb                 # Sinatra API (all routes, ~600 lines)
-├── Gemfile / Gemfile.lock # Ruby dependencies
-├── library.db             # SQLite database (ships with the catalog)
-├── img/                   # cached book covers (created on demand)
+├── backend/                # Rails API app (routes, auth, admin, ~all logic)
+│   ├── app/{models,controllers,services}/
+│   ├── config/database.yml # dev/production point at ../library.db
+│   ├── db/migrate/
+│   └── test/
+├── library.db              # SQLite database (ships with the catalog)
+├── img/                     # cached book covers (created on demand)
 ├── frontend/
 │   ├── index.html
-│   ├── vite.config.js     # dev proxy /api -> :4567, Vitest config
+│   ├── vite.config.js      # dev proxy /api -> :3000, Vitest config
 │   ├── package.json
-│   ├── public/fonts/      # self-hosted woff2 (Space Grotesk / Space Mono)
+│   ├── public/fonts/       # self-hosted woff2 (Space Grotesk / Space Mono)
 │   └── src/
 │       ├── App.jsx, BookModal.jsx, AddBookModal.jsx, AuditLog.jsx
-│       ├── *.css, fonts.css
-│       ├── assets/        # generated dither PNGs
-│       └── *.test.jsx     # frontend tests (Vitest + Testing Library)
+│       ├── LoginModal.jsx, SignupView.jsx, ChangePasswordModal.jsx
+│       ├── UserMenu.jsx, UsersDashboard.jsx (admin)
+│       ├── api.js          # bearer-token header helper
+│       ├── *.css
+│       ├── assets/         # generated dither PNGs
+│       └── *.test.jsx      # frontend tests (Vitest + Testing Library)
 └── README.md
 ```
+
+---
+
+## Accounts & permissions
+
+Browsing (search, the audit log, book history, cover thumbnails) never
+requires an account. **Editing anything requires logging in.**
+
+**Registering:** click "Log In" → "Sign Up". The form asks for first name,
+last name, username, password, and a quiz question ("What is the speed of
+light, in God-given units?" — answer `1`) as a lightweight bot filter.
+Registrations land in a `PENDING` state until an admin approves them; the
+account is auto-removed if it's denied, or if it sits unapproved for more
+than 24 hours (this also reclaims its randomly-assigned 4-digit user ID).
+Registration attempts are also IP-rate-limited (5/hour) via `rack-attack`.
+
+**Regular users** (once approved) can:
+- Check books in/out (edit the Borrower field) and edit Location
+- Add, bulk-import, and remove books
+- Change their own password
+
+**Admins** can additionally:
+- Approve or deny pending registrations, from the **Users Dashboard**
+  (top-right username menu → *Users Dashboard*)
+- Delete a user — optionally reassigning that user's `OWNER`/`BORROWER` text
+  on existing books to someone else first, so deleting an account doesn't
+  leave orphaned name text behind
+- Reset a user's password to a random one-time value (shown once, to relay
+  to them) — this also forces a password change on their next login
+- Promote another user to admin
+
+Every edit still writes an `AUDIT_LOG` row, same as before — the `EDITOR` is
+now the logged-in account's name rather than a free-text field, so it can't
+be spoofed.
 
 ---
 
@@ -85,7 +129,7 @@ WeinbergLedger/
 
 | Tool        | Version              | Needed for                                  |
 |-------------|----------------------|---------------------------------------------|
-| **Ruby**    | 3.2 – 3.4 (or 4.0)   | running the API server                      |
+| **Ruby**    | 3.2+                 | running the Rails API server                |
 | **Bundler** | 2.x (`gem install bundler`) | installing Ruby gems                 |
 | **Node.js** | 20.19+ (LTS 22 recommended) | building / developing the frontend  |
 | **npm**     | 10+ (ships with Node)| frontend dependencies                       |
@@ -98,8 +142,8 @@ WeinbergLedger/
 **macOS** (Homebrew):
 ```bash
 brew install rbenv node
-rbenv install 3.3.3 && rbenv global 3.3.3
-gem install bundler
+rbenv install 3.2.7 && rbenv global 3.2.7
+gem install bundler rails
 ```
 
 **Linux** (Debian/Ubuntu):
@@ -110,15 +154,13 @@ sudo apt install -y build-essential libsqlite3-dev
 # Node 22 via NodeSource:
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
-gem install bundler
+gem install bundler rails
 ```
 
 **Windows**:
 - Install Ruby+Devkit from [RubyInstaller](https://rubyinstaller.org/) (run
   `ridk install` and pick the MSYS2 toolchain when prompted).
 - Install Node LTS from [nodejs.org](https://nodejs.org/).
-- See the [Ruby version note](#ruby-version-compatibility) below — newer Ruby on
-  Windows needs a couple of extra gem lines.
 
 ---
 
@@ -129,36 +171,22 @@ git clone https://github.com/vajralakushal/WeinbergLedger.git WeinbergLedger
 cd WeinbergLedger
 
 # 1) Backend gems
-bundle install
+cd backend && bundle install && cd ..
 
 # 2) Frontend packages
-cd frontend
-npm install
-cd ..
+cd frontend && npm install && cd ..
 ```
 
-### Ruby version compatibility
+`backend/db/migrate/` includes migrations for the `USERS`/`SESSIONS` tables
+(and an idempotent one for the original `LIBRARY`/`AUDIT_LOG` tables, so a
+fresh, book-less database still bootstraps). Run them once after cloning:
 
-Ruby **3.4.0** moved several former standard-library files (`csv`, `ostruct`,
-`logger`, `base64`) out of the default gems and into *bundled gems*. Under
-Bundler they must be declared in the `Gemfile`, or you'll see errors like:
-
-```
-cannot load such file -- ostruct (LoadError)
+```bash
+cd backend && bin/rails db:migrate && cd ..
 ```
 
-- **Ruby 3.2 / 3.3.x** — nothing to do; those files are still default gems.
-- **Ruby 3.4+ / 4.0** — add these lines to the `Gemfile`, then `bundle install`:
-  ```ruby
-  gem 'csv'
-  gem 'ostruct'
-  gem 'logger'
-  gem 'base64'
-  ```
-
-> If your team runs a **mix** of Ruby versions across machines, add those lines
-> but keep the resulting `Gemfile.lock` change **local** (don't commit it) so a
-> lockfile resolved on Ruby 4.0 doesn't break the machine on Ruby 3.2.
+Against the committed `library.db`, this only adds the new `USERS`/`SESSIONS`
+tables — none of the existing book/audit data is touched.
 
 ---
 
@@ -168,8 +196,9 @@ Open **two terminals**.
 
 **Terminal 1 — API server:**
 ```bash
-bundle exec ruby app.rb
-# => listening on http://0.0.0.0:4567
+cd backend
+bin/rails server
+# => listening on http://0.0.0.0:3000
 ```
 
 **Terminal 2 — frontend dev server:**
@@ -179,8 +208,29 @@ npm run dev
 # => open the printed URL, e.g. http://localhost:5173
 ```
 
-Use the app at the **Vite URL** (`:5173`). It proxies API calls to `:4567`
+Use the app at the **Vite URL** (`:5173`). It proxies API calls to `:3000`
 automatically, so both must be running.
+
+To register the first admin (there's no UI for this on purpose — the very
+first account has to be promoted out-of-band), sign up through the app, then:
+```bash
+cd backend
+bin/rails runner 'User.find_by(username: "yourusername").update!(admin_status: true, approval_status: "APPROVED")'
+```
+
+---
+
+## Tests
+
+```bash
+cd backend && bin/rails test     # Ruby: Minitest, ~70 tests
+cd frontend && npm test          # JS: Vitest + Testing Library
+```
+
+Backend tests run against an isolated `backend/storage/test.sqlite3` — they
+never touch the real `library.db`. `DISABLE_OPENLIBRARY=1` is set
+automatically in the test environment, so the suite never makes real network
+calls.
 
 ---
 
@@ -189,15 +239,20 @@ automatically, so both must be running.
 - The catalog lives in **`library.db`** (committed, so a fresh clone already has
   the books). SQLite runs in **WAL mode**, so you may also see `library.db-wal`
   and `library.db-shm` next to it — that's normal.
-- The **`AUDIT_LOG`** table is created automatically on first server start.
-- Every edit / add / remove records a row: who (name), where (IP), what changed
-  (old → new), and when. Browse it in the UI under **View audit log**.
+- `backend/config/database.yml` points the Rails `development` and
+  `production` environments at this same file (one directory up from
+  `backend/`), overridable via `LIBRARY_DB` — exactly like the old Sinatra
+  app's `DB_PATH`. No data migration is needed when pulling this branch.
+- Every edit / add / remove records an `AUDIT_LOG` row: who (name), where
+  (IP), what changed (old → new), and when. Browse it in the UI under
+  **View audit log**.
 
-**Schema** (for reference / creating a fresh empty DB):
+**Schema** (for reference / creating a fresh empty DB — see
+`backend/db/migrate/` for the source of truth):
 ```sql
 CREATE TABLE LIBRARY (
   ID            INTEGER PRIMARY KEY,
-  OWNER         INTEGER NOT NULL,   -- stores the owner's name
+  OWNER         INTEGER NOT NULL,   -- stores the owner's name (legacy INTEGER-typed column, holds text)
   BORROWER      TEXT,
   LOCATION      TEXT,
   TITLE         TEXT NOT NULL,
@@ -208,15 +263,46 @@ CREATE TABLE LIBRARY (
   CREATION_DATE TEXT,
   IDENTIFIER    TEXT                 -- e.g. "LC : ...; ISBN : ...; OCLC : (OCoLC)..."
 );
+
+CREATE TABLE AUDIT_LOG (
+  ID        INTEGER PRIMARY KEY AUTOINCREMENT,
+  BOOK_ID   INTEGER NOT NULL,
+  FIELD     TEXT    NOT NULL,
+  OLD_VALUE TEXT,
+  NEW_VALUE TEXT,
+  EDITOR    TEXT    NOT NULL,
+  IP        TEXT,
+  TIMESTAMP TEXT    NOT NULL
+);
+
+CREATE TABLE USERS (
+  user_id               INTEGER PRIMARY KEY, -- random 4-digit id, assigned on signup
+  admin_status          BOOLEAN NOT NULL DEFAULT 0,
+  first_name            TEXT    NOT NULL,
+  last_name             TEXT    NOT NULL,
+  username              TEXT    NOT NULL UNIQUE,
+  password_digest       TEXT    NOT NULL,    -- bcrypt hash (has_secure_password)
+  approval_status       TEXT    NOT NULL DEFAULT 'PENDING', -- PENDING | APPROVED | DENIED
+  must_change_password  BOOLEAN NOT NULL DEFAULT 0,
+  created_at, updated_at DATETIME NOT NULL
+);
+
+CREATE TABLE SESSIONS (               -- one row per logged-in bearer token
+  id                     INTEGER PRIMARY KEY,
+  user_id                INTEGER NOT NULL,
+  token_digest           TEXT    NOT NULL UNIQUE, -- SHA-256 of the token; the raw token is never stored
+  expires_at             DATETIME NOT NULL,
+  created_at, updated_at DATETIME NOT NULL
+);
 ```
 
-**Importing books:** use the **Add book** dialog in the UI:
+**Importing books:** use the **Add book** dialog in the UI (requires login):
 - *Single book* — type an ISBN/LCCN/OCLC and **Look up** to auto-fill fields
   (all still editable), or fill them by hand.
 - *Bulk CSV* — paste or upload CSV with the columns
   `Owner, Borrower, Shelf, DD, Title, Creator, Publisher, Edition, Series, Notes, Subject, Creation Date, Identifier`.
   Each row needs a Title, an Owner, and an ISBN or LC identifier (a missing ISBN
-  is looked up online when possible; otherwise the row is reported as skipped).
+  is looked up online when possible; otherwise the row is reported as skipped.
 
 ---
 
@@ -238,11 +324,33 @@ dither art). Serve it as described below.
 
 The frontend calls the API at **relative** paths (`/api/...`). So in production
 the static files **and** the API must be reachable under **one hostname/origin**.
-Concretely, requests to `https://your-host/api/...` must reach Sinatra, and
+Concretely, requests to `https://your-host/api/...` must reach Rails, and
 everything else must serve `frontend/dist/`. Every recipe below achieves that.
 
 (You *can* split them across origins, but then you must proxy `/api` to the
 backend yourself — the app has no configurable API base by design.)
+
+### Secrets: the Rails master key
+
+Unlike the old Sinatra app, Rails needs a secret (`secret_key_base`) to boot
+in production — it's what signs/encrypts sessions and the credentials file.
+`bundle exec rails new` generated `backend/config/master.key` locally; it is
+**deliberately gitignored** (it's a secret, same category as a private key —
+never commit it). To deploy:
+
+- Copy `backend/config/master.key` to the production machine out-of-band
+  (`scp`, a password manager, etc. — **not** via git), so it ends up at
+  `backend/config/master.key` there too, **or**
+- Set the `RAILS_MASTER_KEY` environment variable to its contents instead
+  (no file needed) — the way most PaaS/systemd/Docker setups prefer.
+
+Without one of these, `bin/rails server -e production` will fail to boot.
+
+Also note: Rails defaults to **forcing HTTPS** in production
+(`config.force_ssl`). That's correct once you're behind a domain + TLS (Caddy,
+a load balancer, Cloudflare), but it will redirect-loop a **plain-HTTP LAN**
+deployment with nothing terminating TLS in front of it. Set `FORCE_SSL=0` in
+that case (see [Deploy A](#deploy-a-local-mac-mini-primary-target)).
 
 ### Serving the built app
 
@@ -257,7 +365,7 @@ with automatic HTTPS. Point it at `frontend/dist/` and forward `/api`:
 your-host.example.com {
     encode gzip
     handle /api/* {
-        reverse_proxy localhost:4567
+        reverse_proxy localhost:3000
     }
     handle {
         root * /srv/WeinbergLedger/frontend/dist
@@ -266,24 +374,19 @@ your-host.example.com {
     }
 }
 ```
-Run Sinatra (`bundle exec ruby app.rb`) and Caddy (`caddy run`) side by side.
+Run Rails (`bin/rails server -e production`) and Caddy (`caddy run`) side by side.
 
-#### Option B — Let Sinatra serve the frontend (single process, no extra software)
-Add these lines to `app.rb` (near the bottom, by `set :port`). Sinatra then
-serves `frontend/dist/` for everything that isn't an `/api/*` route:
+#### Option B — Let Rails serve the frontend (single process, no extra software)
+`backend/public/` is Rails' static-file root. Symlink (or copy) the built
+frontend into it, so Rails serves `frontend/dist/` for everything that isn't
+an `/api/*` route:
 
-```ruby
-set :public_folder, File.expand_path('frontend/dist', __dir__)
-
-get '/' do
-  send_file File.join(settings.public_folder, 'index.html')
-end
+```bash
+ln -s ../../frontend/dist/* backend/public/
 ```
-Then `bundle exec ruby app.rb` serves the whole app on `:4567`. Simplest for a
-scrappy single-box deployment. (Put a reverse proxy in front only if you want
-HTTPS/compression.)
-
-> These two lines are **not** in the repo yet — add them if you choose Option B.
+Then `bin/rails server -e production` (from `backend/`) serves the whole app
+on `:3000`. Simplest for a scrappy single-box deployment. (Put a reverse
+proxy in front only if you want HTTPS/compression.)
 
 #### Option C — nginx
 ```nginx
@@ -292,7 +395,7 @@ server {
     server_name your-host.example.com;
     root /srv/WeinbergLedger/frontend/dist;
 
-    location /api/ { proxy_pass http://127.0.0.1:4567; }
+    location /api/ { proxy_pass http://127.0.0.1:3000; }
     location /     { try_files $uri /index.html; }
 }
 ```
@@ -303,10 +406,14 @@ server {
 
 Access over the LAN from any machine in the office.
 
-1. Clone, `bundle install`, and `cd frontend && npm run build`.
-2. Choose a serving option above. For LAN-only, **Option B** (Sinatra serves
-   `dist/`) is simplest — the app is then at `http://<mac-mini-ip>:4567`.
-3. Keep it running across logins/reboots with a **LaunchAgent**. Create
+1. Clone, `cd backend && bundle install && bin/rails db:migrate`, and
+   `cd frontend && npm run build`.
+2. Choose a serving option above. For LAN-only, **Option B** (Rails serves
+   `dist/`) is simplest — the app is then at `http://<mac-mini-ip>:3000`.
+3. Since there's no TLS on a bare LAN deployment, set `FORCE_SSL=0` (see
+   [Secrets](#secrets-the-rails-master-key)) — otherwise Rails will redirect
+   every request to `https://`, which nothing is listening on.
+4. Keep it running across logins/reboots with a **LaunchAgent**. Create
    `~/Library/LaunchAgents/com.weinberg.ledger.plist`:
 
    ```xml
@@ -320,10 +427,14 @@ Access over the LAN from any machine in the office.
      <array>
        <string>/bin/bash</string>
        <string>-lc</string>
-       <string>cd /Users/YOU/WeinbergLedger && exec bundle exec ruby app.rb</string>
+       <string>cd /Users/YOU/WeinbergLedger/backend && exec bin/rails server -e production</string>
      </array>
      <key>EnvironmentVariables</key>
-     <dict><key>PORT</key><string>4567</string></dict>
+     <dict>
+       <key>PORT</key><string>3000</string>
+       <key>FORCE_SSL</key><string>0</string>
+       <key>RAILS_MASTER_KEY</key><string>PASTE_THE_MASTER_KEY_HERE</string>
+     </dict>
      <key>RunAtLoad</key><true/>
      <key>KeepAlive</key><true/>
      <key>StandardOutPath</key><string>/tmp/weinberg-ledger.log</string>
@@ -335,19 +446,21 @@ Access over the LAN from any machine in the office.
    launchctl load ~/Library/LaunchAgents/com.weinberg.ledger.plist
    # (bash -lc so rbenv's Ruby is on PATH; adjust the path to your checkout)
    ```
-4. Find the Mac mini's IP (`ipconfig getifaddr en0`) and share
-   `http://<that-ip>:4567` with the group. macOS may prompt to allow incoming
+5. Find the Mac mini's IP (`ipconfig getifaddr en0`) and share
+   `http://<that-ip>:3000` with the group. macOS may prompt to allow incoming
    connections the first time — allow it.
 
 > **Firewall:** this exposes the app to your local network only. For access from
 > outside the office, use [Cloudflare Tunnel](#deploy-d-cloudflare-tunnel-remote-access)
-> rather than opening router ports.
+> rather than opening router ports (and drop `FORCE_SSL=0`, since Cloudflare
+> terminates real TLS in front of the tunnel).
 
 ---
 
 ### Deploy B: Linux server (systemd + Caddy)
 
-1. Clone to `/srv/WeinbergLedger`, `bundle install`, `npm run build` in `frontend/`.
+1. Clone to `/srv/WeinbergLedger`, `cd backend && bundle install && bin/rails db:migrate`,
+   `cd ../frontend && npm run build`.
 2. Run the API under **systemd** — `/etc/systemd/system/weinberg-ledger.service`:
 
    ```ini
@@ -356,9 +469,11 @@ Access over the LAN from any machine in the office.
    After=network.target
 
    [Service]
-   WorkingDirectory=/srv/WeinbergLedger
-   Environment=PORT=4567
-   ExecStart=/usr/bin/env bundle exec ruby app.rb
+   WorkingDirectory=/srv/WeinbergLedger/backend
+   Environment=PORT=3000
+   Environment=RAILS_ENV=production
+   Environment=RAILS_MASTER_KEY=PASTE_THE_MASTER_KEY_HERE
+   ExecStart=/usr/bin/env bin/rails server
    Restart=always
    User=www-data
 
@@ -369,21 +484,22 @@ Access over the LAN from any machine in the office.
    sudo systemctl daemon-reload
    sudo systemctl enable --now weinberg-ledger
    ```
-   (If Ruby is installed via rbenv, use the full path to its `bundle` shim in
-   `ExecStart`, e.g. `/home/USER/.rbenv/shims/bundle exec ruby app.rb`.)
-3. Put **Caddy** in front (Option A) for static files + HTTPS.
+   (If Ruby is installed via rbenv, use the full path to its Ruby/gem shims in
+   `ExecStart`, e.g. `/home/USER/.rbenv/shims/bundle exec rails server`.)
+3. Put **Caddy** in front (Option A) for static files + HTTPS — with a real
+   domain behind Caddy, leave `FORCE_SSL` unset (defaults to on).
 
 ---
 
 ### Deploy C: Windows
 
 1. Install Ruby+Devkit and Node (see [Prerequisites](#prerequisites)).
-2. On Ruby 3.4+/4.0, add the [bundled-gem lines](#ruby-version-compatibility) and
-   `bundle install`.
+2. `cd backend && bundle install && bin\rails db:migrate`.
 3. `cd frontend && npm run build`.
 4. Serve with **Caddy for Windows** (Option A) or use **Option B** and run
-   `bundle exec ruby app.rb`. To keep it running as a service, use
-   [NSSM](https://nssm.cc/) to wrap the `ruby app.rb` command.
+   `bin\rails server -e production` (set `FORCE_SSL=0` if there's no TLS in
+   front of it). To keep it running as a service, use
+   [NSSM](https://nssm.cc/) to wrap the `rails server` command.
 5. The `SIGUSR2/SIGUSR1/SIGHUP not implemented` messages Puma prints on Windows
    are harmless — those are POSIX-only restart signals.
 
@@ -398,8 +514,9 @@ Pages Function. The clean way to put it on the internet (with HTTPS, no open
 router ports) is to run the app on your box and expose it through a
 **Cloudflare Tunnel**.
 
-1. Run the app locally so it's reachable at one origin, e.g. Caddy or Sinatra on
-   `http://localhost:8080` (Option A/B).
+1. Run the app locally so it's reachable at one origin, e.g. Caddy or Rails on
+   `http://localhost:8080` (Option A/B). Cloudflare terminates real TLS in
+   front of the tunnel, so leave `FORCE_SSL` unset here (default on).
 2. Install `cloudflared` and authenticate:
    ```bash
    brew install cloudflared          # macOS; see docs for Linux/Windows
@@ -430,19 +547,22 @@ restrict who can reach it.
 
 ## Configuration reference
 
-All configuration is via environment variables (none are required — defaults
-shown).
+All configuration is via environment variables (none are required in
+development — defaults shown; `RAILS_MASTER_KEY` is required in production,
+see [Secrets](#secrets-the-rails-master-key)).
 
-| Variable             | Default            | Purpose                                                                 |
-|----------------------|--------------------|-------------------------------------------------------------------------|
-| `PORT`               | `4567`             | Port the API server binds (on `0.0.0.0`).                               |
-| `LIBRARY_DB`         | `./library.db`     | Path to the SQLite database file.                                       |
-| `LIBRARY_IMG_DIR`    | `./img`            | Directory where fetched cover images are cached.                        |
-| `DISABLE_OPENLIBRARY`| *(unset)*          | `1` = skip OpenLibrary (offline; lookups report "not found"). `error` = force the error path. Used by the test suite; handy for fully offline installs. |
+| Variable              | Default            | Purpose                                                                 |
+|------------------------|--------------------|-------------------------------------------------------------------------|
+| `PORT`                 | `3000`             | Port the API server binds (on `0.0.0.0`).                               |
+| `LIBRARY_DB`           | `../library.db`    | Path to the SQLite database file (relative to `backend/`).              |
+| `LIBRARY_IMG_DIR`      | `../img`           | Directory where fetched cover images are cached.                        |
+| `DISABLE_OPENLIBRARY`  | *(unset)*          | `1` = skip OpenLibrary (offline; lookups report "not found"). `error` = force the error path. Used by the test suite; handy for fully offline installs. |
+| `FORCE_SSL`            | `true` (production only) | `0` to disable Rails' forced HTTPS redirect — needed for a plain-HTTP LAN deployment with no reverse-proxy TLS in front of it. |
+| `RAILS_MASTER_KEY`     | *(none)*           | Production secret; alternative to committing/copying `backend/config/master.key`. |
 
 Example (offline install on a box with no internet):
 ```bash
-DISABLE_OPENLIBRARY=1 PORT=8080 bundle exec ruby app.rb
+DISABLE_OPENLIBRARY=1 PORT=8080 bin/rails server
 ```
 
 ---
@@ -459,21 +579,34 @@ DISABLE_OPENLIBRARY=1 PORT=8080 bundle exec ruby app.rb
 - The audit log grows over time inside `AUDIT_LOG`. It's small (one row per
   edit) and worth keeping — it's the accountability record.
 - Cover images in `img/` are just a cache; safe to delete (they'll refetch).
+- `USERS`/`SESSIONS` are in the same `library.db` file, so the same backup
+  covers accounts too. A user's session(s) are revoked immediately by
+  deleting their row(s) from `SESSIONS` (logging out does this automatically).
 
 ---
 
 ## Troubleshooting
 
-**`Address already in use ... port 4567 (Errno::EADDRINUSE)`**
+**`Address already in use ... port 3000 (Errno::EADDRINUSE)`**
 Another copy of the server is already running. Find and stop it:
 ```bash
-lsof -ti tcp:4567 | xargs kill        # macOS/Linux
-# Windows:  netstat -ano | findstr :4567    then    taskkill /PID <pid> /F
+lsof -ti tcp:3000 | xargs kill        # macOS/Linux
+# Windows:  netstat -ano | findstr :3000    then    taskkill /PID <pid> /F
 ```
 
-**`cannot load such file -- ostruct (LoadError)` (or `csv`, `logger`, `base64`)**
-You're on Ruby 3.4+/4.0. Add the [bundled-gem lines](#ruby-version-compatibility)
-to the `Gemfile` and `bundle install`.
+**`Missing encryption key to decrypt file with... ActiveSupport::MessageEncryptor::InvalidMessage`**
+Rails can't find `backend/config/master.key` and `RAILS_MASTER_KEY` isn't
+set. See [Secrets](#secrets-the-rails-master-key) — this file is
+intentionally not committed to git.
+
+**The app keeps redirecting to `https://` and the page never loads**
+You're on a plain-HTTP LAN/local deployment with Rails' default
+`force_ssl` still on. Set `FORCE_SSL=0` (see
+[Deploy A](#deploy-a-local-mac-mini-primary-target)).
+
+**`Migrations are pending` / schema errors on boot**
+Run `cd backend && bin/rails db:migrate`. Safe to run repeatedly — the
+`LIBRARY`/`AUDIT_LOG` migration is a no-op if those tables already exist.
 
 **ISBN lookup returns `503` "temporarily unavailable"**
 The server couldn't reach OpenLibrary. It retries automatically; try again, or
@@ -499,3 +632,14 @@ against a given `library.db`.
 You're almost certainly not serving on the [same origin](#the-one-deployment-invariant-same-origin).
 Confirm that `https://your-host/api/whoami` returns JSON from the same hostname
 that serves the page.
+
+**Can't log in / "You must be logged in" on every request**
+The bearer token is stored in the browser's `localStorage`; clearing site
+data logs you out. If a token looks valid but requests still 401, the
+session may have expired (30-day TTL) or been revoked (e.g. an admin
+deleted the account) — log in again.
+
+**Registered but stuck on "pending"**
+An admin needs to approve the account from the Users Dashboard. Registrations
+left unapproved for more than 24 hours are automatically removed (this is by
+design, to reclaim unused 4-digit user IDs) — sign up again if that happens.
